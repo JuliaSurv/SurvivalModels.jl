@@ -9,14 +9,18 @@
 [![PkgEval](https://JuliaCI.github.io/NanosoldierReports/pkgeval_badges/S/SurvivalModels.svg)](https://JuliaCI.github.io/NanosoldierReports/pkgeval_badges/S/SurvivalModels.html)
 [![Aqua](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
 
+# Roadmap
 
-The goal of this package is to provide an iterface to fit on standard survival problems the following models: 
+This package is for the moment empty. The goal of this implementation is to provide an iterface to fit on standard survival problems (that is, one censored time to event is observed, eventually with covariates), the following models: 
 
-- Non-parametric: Kaplan-Meier, Nelson-Aalen, ...
+- Non-parametric: Kaplan-Meier, Nelson-Aalen, Log-rank Test, ...
 - Semi-parametric: Cox, Aalen, ...
 - Parametric: General Hazard (sucessor of [`HazReg.jl`](https://github.com/FJRubio67/HazReg.jl)), General Odds, ...
 
-Then, through a junction with [`NetSurvival.jl`](https://github.com/JuliaSurv/NetSurvival.jl), the same kind of models wouldbe fittable on net survival data, that is with the population mortality offset.
+A few notes on details : 
 
+1) For all the semi-paramtric and parametric models, we need to provide an interface that clearly gives the coefficients, eventually statistics about them (significances ? others ?). We might leverage the standard modeling interface from `StatsBase.jl`/`StatsAPI.jl`/`StatsModels.jl`. 
+2) The solver used to fit the model, when needed, could be left to the user by leveraging the interface from `Optimization.jl`
+3) Through a junction with [`NetSurvival.jl`](https://github.com/JuliaSurv/NetSurvival.jl), the same kind of models would be fittable on net survival data, i.e. with a population mortality offset.
 
 This is still work to be done of course. 
