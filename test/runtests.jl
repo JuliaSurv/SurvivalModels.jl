@@ -1,10 +1,11 @@
-using SurvivalModels
-using Test
-using Aqua
+using TestItemRunner
 
-@testset "SurvivalModels.jl" begin
-    @testset "Code quality (Aqua.jl)" begin
-        Aqua.test_all(SurvivalModels)
-    end
-    # Write your tests here.
+@run_package_tests
+
+@testitem "Code quality (Aqua.jl)" begin
+    using Aqua
+    Aqua.test_all(
+        SurvivalModels;
+        ambiguities=false,
+    )
 end
