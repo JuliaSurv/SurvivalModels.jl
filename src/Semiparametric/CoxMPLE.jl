@@ -85,3 +85,5 @@ function StatsBase.fit(::Type{CoxModel},formula::FormulaTerm, df::DataFrame, met
     resp = modelcols(formula_applied.lhs, df)
     return CoxModel(fill(0.0, ncol(predictors)), resp[:,1], resp[:,2], predictors, method, maxit)
 end
+
+# Confidence interval : see in HazReg.
