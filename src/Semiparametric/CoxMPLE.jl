@@ -49,12 +49,39 @@ function mlogplik(par, times, status, des, times_obs, nobs)
     #= return -Log-likelihood value =#
     return val
 end
+mlogplik(X::CoxModel) = mlogplik(X.par, X.times, X.status, X.des, X.times_obs, X.nobs)
 
 
-function CoxMPLE(init, times, status, des, method, maxit)
-    nobs = sum(status)
-    times_obs = times[status]
-    optimiser = optimize(par -> mlogplik(par, times, status, des, times_obs, nobs), init, method=method, iterations=maxit)
-    return optimiser, mlogplik
+# confidence intervals ? 
+# pvalues for netsted models ? 
+# profile likelyhood ? 
+
+
+struct CoxModel{Topt, Tfun}
+    par
+    times
+    status
+    des
+    times_obs
+    nobs
+    function CoxModel(init, times, status, des, method, maxit)
+        nobs = sum(status)
+        times_obs = times[status]
+        optimiser = optimize(par -> mlogplik(par, times, status, des, times_obs, nobs), init, method=method, iterations=maxit)
+        return new{typeof(optimiser),typeof(mlogplik)}(
+            par,
+            times,
+            status,
+            des,
+            times_obs,
+            nobs
+        )
+    end
 end
 
+function StatsBase.fit(::Type{CoxModel},formula::FormulaTerm, df::DataFrame, method, maxit)
+    formula_applied = apply_schema(formula,schema(df))
+    predictors = modelcols(formula_applied.rhs, df)
+    resp = modelcols(formula_applied.lhs, df)
+    return CoxModel(fill(0.0, ncol(predictors)), resp[:,1], resp[:,2], predictors, method, maxit)
+end
