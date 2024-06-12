@@ -16,6 +16,7 @@ SurvivalBase = "9cb6079b-e021-4662-8a75-9f65bfa286f2"
 [compat]
 Aqua = "0.8"
 DataFrames = "1"
+Distributions = "0.25"
 LogExpFunctions = "0.3"
 Optim = "1"
 StatsAPI = "1"

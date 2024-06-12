@@ -72,6 +72,11 @@
             NelderMead(),
             1000
       )
+
+      betahat = OPTCox[1].minimizer
+      @test betahat[1] ≈ -0.4874388584969206
+      @test betahat[2] ≈ 0.7626546774084827
+
       # 95% Confidence intervals under the reparameterisation
       # CI = ConfInt(FUN = OPTCox[2], MLE = OPTCox[1].minimizer, level = 0.95)
 
