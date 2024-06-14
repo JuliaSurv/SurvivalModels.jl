@@ -2,7 +2,8 @@ function mlogplik(par, times, status, des, times_obs, nobs)
     x_beta = des * par
     val = -sum(x_beta[status])
     for i in 1:nobs
-        rs = findall(times .>= times_obs[i]) # risk set. 
+        rs = findall(times .>= times_obs[i]) # risk set.
+        # rs = i:nobs # ? Not working because of ties. 
         val += logsumexp(x_beta[rs])
     end
     return val
@@ -32,10 +33,10 @@ struct CoxModel
     times_obs::Vector{Float64}
     nobs::Int64
     function CoxModel(init, times, status, des, method, maxit)
-        # o = sortperm(times)
-        # times = times[o]
-        # status = status[o]
-        # des = des[o,:]
+        o = sortperm(times)
+        times = times[o]
+        status = status[o]
+        des = des[o,:]
 
         status = Bool.(status)
         nobs = sum(status)
