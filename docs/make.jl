@@ -1,10 +1,18 @@
 using SurvivalModels
 using Documenter
+using DocumenterCitations
 
 DocMeta.setdocmeta!(SurvivalModels, :DocTestSetup, :(using SurvivalModels); recursive=true)
 
+bib = CitationBibliography(
+    joinpath(@__DIR__,"src","assets","references.bib"),
+    style=:numeric
+)
+
+
 makedocs(;
     modules=[SurvivalModels],
+    plugins=[bib],
     authors="Oskar Laverny <oskar.laverny@univ-amu.fr> and contributors",
     sitename="SurvivalModels.jl",
     format=Documenter.HTML(;
@@ -14,6 +22,7 @@ makedocs(;
     ),
     pages=[
         "Home" => "index.md",
+        "references.md",
     ],
 )
 

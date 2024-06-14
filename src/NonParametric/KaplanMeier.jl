@@ -34,4 +34,3 @@ function StatsAPI.confint(S::KaplanMeier; level::Real=0.05)
 end
 # Other methods to implement for this ? 
 # Maybe a vignette at least ? 
-
