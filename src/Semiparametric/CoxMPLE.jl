@@ -32,6 +32,11 @@ struct CoxModel
     times_obs::Vector{Float64}
     nobs::Int64
     function CoxModel(init, times, status, des, method, maxit)
+        # o = sortperm(times)
+        # times = times[o]
+        # status = status[o]
+        # des = des[o,:]
+
         status = Bool.(status)
         nobs = sum(status)
         times_obs = times[status]
