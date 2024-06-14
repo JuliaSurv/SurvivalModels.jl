@@ -31,7 +31,7 @@ struct LogRankTest
         # Comput KM numerator and denominators on each strata&group (s,g)
         for s in eachindex(stratas)
             for g in eachindex(groups)
-                idx = (group .== groups[g]) .&& (strata .== stratas[s])
+                idx = Bool.((group .== groups[g]) .* (strata .== stratas[s]))
                 model = KaplanMeier(T[idx], Δ[idx])
                 ∂N[s, g, :], ∂V[s, g, :], D[s, g, :] = model.d, model.d / (model.n - model.d), model.n
             end
