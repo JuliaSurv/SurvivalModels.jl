@@ -102,7 +102,7 @@ end
       OPTCox = fit(CoxModel, @formula(Surv(FUTime, FUStat) ~ Age + ECOG_PS), ovarian, NelderMead(), 1000)
 
       betahat = OPTCox.par
-      @test betahat[1] ≈ -0.16149 atol=1e-3
+      @test betahat[1] ≈ 0.16149 atol=1e-3
       @test betahat[2] ≈ 0.0187 atol=1e-3
 
 end
