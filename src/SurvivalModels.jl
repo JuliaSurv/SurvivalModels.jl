@@ -7,6 +7,7 @@ using StatsAPI
 using StatsBase
 using StatsModels
 using DataFrames
+using Distributions
 using Optim
 using LogExpFunctions
 
@@ -15,5 +16,5 @@ include("NonParametric/LogRankTest.jl")
 
 include("Semiparametric/CoxMPLE.jl")
 
-export KaplanMeier, LogRankTest, CoxMPLE
+export KaplanMeier, LogRankTest, CoxModel, @formula, Surv
 end
