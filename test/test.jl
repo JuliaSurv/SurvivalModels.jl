@@ -70,7 +70,7 @@
             status,  
             des,  
             NelderMead(),
-            1000
+            2000
       )
 
       betahat = OPTCox.par
