@@ -1,14 +1,23 @@
-function mlogplik(par, times, status, des, times_obs, nobs)
-    x_beta = des * par
-    val = -sum(x_beta[status])
-    for i in 1:nobs
-        rs = findall(times .>= times_obs[i]) # risk set.
-        # rs = i:nobs # ? Not working because of ties. 
-        val += logsumexp(x_beta[rs])
-    end
-    return val
-end
+function cox_nllh(β, t, δ, X)
+    Xβ = X * β # linear predictor.
+    θ = exp.(Xβ)
 
+    # we could just sum them for times that are equals. 
+    # this maping could be done once. 
+
+    prev_i = firstindex(t) # first index of equal times.
+    llh = zero(eltype(β))
+    for i in eachindex(t)
+        # update the first index of equal times: 
+        if t[prev_i] < t[i]
+            prev_i = i
+        end
+        if δ[i]
+            llh += - Xβ[i] + log(sum(@view θ[prev_i:end]))
+        end
+    end
+    return llh
+end
 
 """
     CoxModel(init, times, status, des, method, maxit)
@@ -30,30 +39,25 @@ struct CoxModel
     times::Vector{Float64}
     status::Vector{Bool}
     des::Matrix{Float64}
-    times_obs::Vector{Float64}
-    nobs::Int64
     function CoxModel(init, times, status, des, method, maxit)
+
         o = sortperm(times)
         times = times[o]
-        status = status[o]
+        status = Bool.(status[o])
         des = des[o,:]
 
-        status = Bool.(status)
-        nobs = sum(status)
-        times_obs = times[status]
-        optimiser = optimize(par -> mlogplik(par, times, status, des, times_obs, nobs), init, method=method, iterations=maxit)
+        # Let me compute here the llh : 
+        optimiser = optimize(par -> cox_nllh(par, times, status, des), init, method=method, iterations=maxit)
         return new(
             optimiser.minimizer,
             times,
             status,
             des,
-            times_obs,
-            nobs
         )
     end
 end
 
-mlogplik(X::CoxModel) = mlogplik(X.par, X.times, X.status, X.des, X.times_obs, X.nobs)
+mlogplik(X::CoxModel) = mlogplik(X.par, X.times, X.status, X.des)
 
 function StatsBase.fit(::Type{CoxModel},formula::FormulaTerm, df::DataFrame, method, maxit)
     formula_applied = apply_schema(formula,schema(df))
@@ -68,3 +72,10 @@ end
 # confidence intervals ? 
 # pvalues for netsted models ? 
 # profile likelyhood ? 
+
+
+# we would like to set this up as an optimization routine from Optimization.jl so that is can be solved using different stuff. 
+# we can provide the loss but also the gradient and evne the hessian as formulas are on wikipedia. 
+
+
+
