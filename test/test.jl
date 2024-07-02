@@ -4,15 +4,16 @@
 
       # Required packages
       using Distributions, Random, Optim
+      using StableRNGs
+      rng = StableRNG(123)
 
       # Sample size
       n = 1000
 
       # Simulated design matrices
-      Random.seed!(123)
       dist = Normal()
-      des = hcat(rand(dist, n), rand(dist, n))
-      des_t = rand(dist, n)
+      des = hcat(rand(rng, dist, n), rand(rng, dist, n))
+      des_t = rand(rng, dist, n)
 
       # True parameters
       theta0 = [0.1,2.0,5.0]
@@ -27,11 +28,10 @@
             return val
         end
 
-      function simPH(seed, n, des, theta, beta)
+      function simPH(rng, n, des, theta, beta)
             #= Uniform variates =#
-            Random.seed!(seed)
             distu = Uniform(0, 1)
-            u = rand(distu, n)
+            u = rand(rng, distu, n)
         
             #= quantile function =#
             function quantf(prob)
@@ -53,7 +53,7 @@
             return times
         end
       # Data simulation
-      simdat = simPH(1234, n, des, theta0, beta0)
+      simdat = simPH(rng, n, des, theta0, beta0)
 
       # status variable
       status = collect(Bool,(simdat .< cens))
@@ -70,12 +70,12 @@
             status,  
             des,  
             NelderMead(),
-            2000
+            1000
       )
 
       betahat = OPTCox.par
-      @test betahat[1] ≈ -0.4874388584969206 atol=1e-2
-      @test betahat[2] ≈ 0.7626546774084827 atol=1e-2
+      @test betahat[1] ≈ -0.4926892848193542 atol=1e-2
+      @test betahat[2] ≈ 0.6790626074990427 atol=1e-2
 
       # 95% Confidence intervals under the reparameterisation
       # CI = ConfInt(FUN = OPTCox[2], MLE = OPTCox[1].minimizer, level = 0.95)
