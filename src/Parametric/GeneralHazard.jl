@@ -1,36 +1,32 @@
+abstract type AbstractGHMethod end
+struct PHMethod  <: AbstractGHMethod end
+struct AFTMethod <: AbstractGHMethod end
+struct AHMethod  <: AbstractGHMethod end
+struct GHMethod  <: AbstractGHMethod end
+
+c1(::GHMethod,  X1, X2, β, α) = exp.(X2 * α)
+c1(::PHMethod,  X1, X2, β, α) = 1.0
+c1(::AFTMethod, X1, X2, β, α) = exp.(X1 * β)
+c1(::AHMethod,  X1, X2, β, α) = exp.(X2 * α)
+
+c2(::GHMethod,  X1, X2, β, α) = exp.(X1 * β - X2 * α)
+c2(::PHMethod,  X1, X2, β, α) = exp.(-X1 * β)
+c2(::AFTMethod, X1, X2, β, α) = 1.0
+c2(::AHMethod,  X1, X2, β, α) = exp.(-X2 * α)
+
 """
-    GHMLE(...)
+    ProportionalHazard(     T, Δ, baseline, X1, X2, optimizer)
+    AcceleratedFaillureTime(T, Δ, baseline, X1, X2, optimizer)
+    AcceleratedHazard(      T, Δ, baseline, X1, X2, optimizer)
+    GeneralHazard(          T, Δ, baseline, X1, X2, optimizer)
 
+Maximum likelihood estimation in General Hazards models using provided `baseline` distribution, provided hazard structure (through the `method` argument), provided design matrices and given optimizer form Optim.jl. 
 
-Maximum likelihood estimation in General Hazards models using 
-several parametric baseline hazards
+Parameters `T,Δ` represent observed times and statuses, while `X1, X2` should contain covariates. The number of columns in design matrices can be zero. 
 
-Docs to rewrite....
+Hazard structures are defined by the method, which should be `<:AbstractGHMethod`, availiable possbilities are `PHMethod()`, `AFTMethod()`, `AHMethod()` and `GHMethod()`.
 
-
-init : initial point for optimisation step under the parameterisation 
-(log(scale), log(shape1), log(shape2), alpha, beta) for scale-shape1-shape2 models or 
-(mu, log(scale), alpha, beta) for log-location scale models.
-
-times : times to event
-
-status: vital status indicators (true or 1 = observed, false or 0 = censored)
-
-hstr: hazard structure.  No covariates ("baseline"), AFT model ("AFT"), PH model ("PH"), 
-      AH model ("AH"), GH model ("GH").
-
-dist: baseline hazard distribution, on the form of a type <: Distributions.ContinuousUnivariateDistribution. Tested with:
-    - LogNormal
-    - LogLogistic
-    - Weibull
-    - Gamma
-    - ExponentiatedWeibull
-    - GeneralizedGamma
-    - PowerGeneralizedWeibull.
-
-des: design matrix for hazard-level effects
-
-des_t: design matrix for time-level effects (it is recommended not to use splines here)
+The baseline distribution should be provided as a `<:Distributions.ContinuousUnivariateDitribution` object from `Distributions.jl` or compliant, e.g. from `SurvivalDistributions.jl`
 
 method: one of NelderMead(), Newton(), LBFGS(), ConjugateGradient() or GradientDescent() or any other method taken by Optim.optimize().
 
@@ -39,169 +35,52 @@ maxit: maximum number of iterations of the optimization routine.
 References: 
 * [Link to my reference so that people understand what it is](https://myref.com)
 """
-function GHMLE(; 
-    init::Vector{Float64}, 
-    times::Vector{Float64}, 
-    status::Vector{Bool},
-    hstr::String,
-    dist::Type{T},
-    des::Union{Matrix{Float64},Vector{Float64},Nothing}, 
-    des_t::Union{Matrix{Float64},Vector{Float64},Nothing},
-    method::Optim.AbstractOptimizer,
-    maxit::Int64) where T<:Distributions.ContinuousUnivariateDistribution
-
-    #= -Log-likelihood =#
-
-    # fix nothings by replacing by empty matrices. 
-    des = isnothing(des) ? Array{Float64}(undef,0,0) : des
-    des_t = isnothing(des_t) ? Array{Float64}(undef,0,0) : des_t
-
-    # get number of parameters: 
-    npd = length(Distributions.params(dist()))
-    p = size(des,2)
-    q = size(des_t, 2)
-    @assert length(init) == npd + p + q # check init vector lenght: 
-
-
-    # This loglikelyhood function could be completely refactored and simplified using types for the different hazard structures. 
-    # it would make a lot of sense. 
-    # I did what i could without types, but something better could be done here.. 
-
-
-    function mloglik(par::Vector)
-        # split parameters: 
-        d  = dist(exp.(par[1:npd])...) # reconstruct the distribution with these new parameters. 
-
-        if (q == 0) && (p == 0)
-            # then only the baseline would be returned since there is no parameters. 
-            return general_hazard_llh(d,times,status, 1, 0, 1, 0)
+struct GeneralHazardModel{Method, B}
+    T::Vector{Float64}
+    Δ::Vector{Bool}
+    baseline::B
+    X1::Matrix{Float64}
+    X2::Matrix{Float64}
+    α::Vector{Float64}
+    β::Vector{Float64}
+    function GeneralHazardModel(m::Method, T, Δ, baseline, X1, X2, optimizer) where Method<:AbstractGHMethod
+        npd, p, q = length(Distributions.params(baseline())), size(X1,2), size(X2,2)
+        init = zeros(npd+p+q)
+        function mloglik(par::Vector)
+            d, α, β = baseline(exp.(par[1:npd])...), par[npd .+ (1:q)], par[npd + q .+ (1:p)]
+            B = (Method == AHMethod) ? 0.0 : (X1[Δ,:] * β)
+            C = c1(m, X1, X2, β, α)
+            D = c2(m, X1, X2, β, α)
+            return  -sum(loghaz.(d, T[Δ] .* C[Δ]) .+ B) + sum(cumhaz.(d, T .* C) .* D)
         end
-
-        if p > 0 # then you might want some regression parameters beta. 
-            beta = par[(npd+q+1):(npd+q+p)]
-            x_beta = des * beta
-            exp_beta = exp.(x_beta)
-        end
-
-        if q > 0 # then you might want some regression parameters alpha. 
-            alpha = q == 1 ? par[npd+1] : par[(npd+1):(npd+q)]
-            x_alpha = des_t * alpha
-            exp_alpha = exp.(x_alpha)
-        end
-
-        if hstr == "PH" # Proportional Hazards models 
-            return general_hazard_llh(d,times,status, 1,                    x_beta[status], 1,         exp_beta)
-        elseif hstr == "AFT" # Accelerated Failure Time models 
-            return general_hazard_llh(d,times,status, exp.(x_beta[status]), x_beta[status], exp_beta,  1)
-        elseif hstr == "AH" # Accelerated Hazards models 
-            return general_hazard_llh(d,times,status, exp_alpha[status],    0,              exp_alpha, exp.(-x_alpha))
-        elseif hstr == "GH" # General Hazards models 
-            return general_hazard_llh(d,times,status, exp_alpha[status],    x_beta[status], exp_alpha, exp.(x_beta .- x_alpha))
-        end
+        par = optimize(mloglik, init, method=optimizer).minimizer
+        d, α, β = baseline(exp.(par[1:npd])...), par[npd .+ (1:q)], par[npd + q .+ (1:p)]
+        return new{Method, typeof(d)}(T, Δ, d, X1, X2, α, β)
     end
-    optimiser = optimize(mloglik, init, method=method, iterations=maxit)
-    return optimiser, mloglik
 end
-general_hazard_llh(d, T, Δ, α, β, γ, δ) = -sum(loghaz.(d,T[Δ] .* α) .+ β) + sum(cumhaz.(d,T .* γ) .* δ)
 
+const ProportionalHazard{B}      = GeneralHazardModel{PHMethod,  B}
+const AcceleratedFaillureTime{B} = GeneralHazardModel{AFTMethod, B}
+const AcceleratedHazard{B}       = GeneralHazardModel{AHMethod,  B}
+const GeneralHazard{B}           = GeneralHazardModel{GHMethod,  B}
 
-#= 
-----------------------------------------------------------------------------------------
-Function to calculate normal confidence intervals.
-It uses the reparameterised log-likelihood function, where all positive parameters are
-mapped to the real line using a log-link.
-----------------------------------------------------------------------------------------
-=#
-
-#= 
-FUN   : minus log-likelihood function to be used to calculate the confidence intervals
-MLE   : maximum likelihood estimator of the parameters 
-level : confidence level
-Returns a list containing the upper and lower conf.int limits, the transformed MLE, and std errors
-=#
-
-
-# function ConfInt(; FUN::Function, MLE::Vector{Float64}, level::Float64)
-#     dist = Normal(0,1)
-#     sd_int = abs(quantile(dist, 0.5*(1-level)))
-
-#     HESS = ForwardDiff.hessian(FUN, MLE)
-#     Fisher_Info = inv(HESS)
-#     Sigma = sqrt.(diag(Fisher_Info))
-#     U = MLE .+ sd_int .* Sigma
-#     L = MLE .- sd_int .* Sigma
-#     CI = hcat(L,U)
-    
-#     return CI
-# end
+ProportionalHazard(     args...; kwargs...) = GeneralHazardModel(PHMethod(),  args...; kwargs...)
+AcceleratedFaillureTime(args...; kwargs...) = GeneralHazardModel(AFTMethod(), args...; kwargs...)
+AcceleratedHazard(      args...; kwargs...) = GeneralHazardModel(AHMethod(),  args...; kwargs...)
+GeneralHazard(          args...; kwargs...) = GeneralHazardModel(GHMethod(),  args...; kwargs...)
 
 """
-    simGH(...)
+    simGH(n, model::GeneralHazardModel)
 
-
-    Details...
-
-Docs to rewrite....
-
-
---------------------------------------------------------------------------------------------------
-simGH function: Function to simulate times to event from a model with AH, AFT, PH, GH structures
-for different parametric baseline hazards.
-Distributions: LogNormal, LogLogistic, GenGamma, GGamma, Weibull, PGW, EW.
-See: https://github.com/FJRubio67/HazReg
---------------------------------------------------------------------------------------------------
-=#
-
-#=
-seed  : seed for simulation
-n : sample size (number of individuals)
-beta  : regression parameters multiplying the hazard for the GH model
-        or the regression parameters for AFT and PH models
-alpha  : regression parameters multiplying the time scale for the GH model
-        or the regression parameters for the AH model
-des : Design matrix for the GH model (hazard scale)
-      or design matrix for AFT and PH models
-des_t : Design matrix for the GH model (time scale)
-       or design matrix for the AH model
-hstr  : hazard structure (AH, AFT, PH, GH)
-dist: distribution passed as an already instanciated distribution from Distributions.jl
-baseline  : baseline hazard distribution
+This function simulate times to event from a general hazard model, whatever the structure it has (AH, AFT, PH, GH), and whatever its baseline distribution. 
 
 Returns a vector containing the simulated times to event
 
 References: 
-* [Link to my reference so that people understand what it is](https://myref.com) 
+* [HazReg original code](https://github.com/FJRubio67/HazReg) 
 """
-function simGH(; seed::Int64, n::Int64,
-    des::Union{Matrix{Float64},Vector{Float64},Nothing}, 
-    des_t::Union{Matrix{Float64},Vector{Float64},Nothing},
-    alpha::Union{Vector{Float64},Float64,Nothing}, 
-    beta::Union{Vector{Float64},Float64,Nothing},
-    hstr::String, dist::Distributions.ContinuousDistribution)
-
-    #= Uniform variates =#
-    Random.seed!(seed)
-    distu = Uniform(0, 1)
-    u = rand(distu, n)
-
-    # Also here, these could be simplified a lot by a hazard structure :)
-    if hstr == "GH"
-        exp_xalpha = exp.(des_t * alpha)
-        exp_dif    = exp.(des_t * alpha .- des * beta)
-    elseif hstr == "PH"
-        exp_xalpha = 1.0
-        exp_dif    = exp.(-des * beta)
-    elseif hstr == "AFT"
-        exp_xalpha = exp.(des * beta)
-        exp_dif    = 1.0
-    elseif hstr == "AH"
-        exp_xalpha = exp.(des_t * alpha)
-        exp_dif    = exp.(des_t * alpha)
-    end
-
-    # Simulating the times to event
-    p0 = 1 .- exp.(log.(1 .- u) .* exp_dif)
-    times = quantile.(dist,p0) ./ exp_xalpha
-
-    return times
+function simGH(n, m::GeneralHazardModel{M,B}) where {M,B}
+    args = (M(), m.X1, m.X2, m.β, m.α)
+    p0 = 1 .- exp.(log.(1 .- rand(n)) ./ c2(args...))
+    return quantile.(dist,p0) ./ c1(args...)
 end
