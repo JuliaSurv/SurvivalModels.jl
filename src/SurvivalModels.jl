@@ -18,9 +18,9 @@ using SurvivalDistributions
 
 include("NonParametric/KaplanMeier.jl")
 include("NonParametric/LogRankTest.jl")
-include("Parametric/GeneralHazard.jl")
 include("Semiparametric/CoxMPLE.jl")
+include("Parametric/GeneralHazard.jl")
 
-export KaplanMeier, LogRankTest, CoxModel, @formula, Surv, GeneralHazard
+export fit, KaplanMeier, LogRankTest, CoxModel, @formula, Surv, GeneralHazard
 
 end

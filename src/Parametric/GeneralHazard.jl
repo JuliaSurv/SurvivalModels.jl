@@ -59,6 +59,9 @@ struct GeneralHazardModel{Method, B}
     end
 end
 
+_method(::Type{GeneralHazardModel{M,B}}) where {M,B} = M()
+_baseline(::Type{GeneralHazardModel{M,B}}) where {M,B} = B
+
 const ProportionalHazard{B}      = GeneralHazardModel{PHMethod,  B}
 const AcceleratedFaillureTime{B} = GeneralHazardModel{AFTMethod, B}
 const AcceleratedHazard{B}       = GeneralHazardModel{AHMethod,  B}
@@ -68,6 +71,27 @@ ProportionalHazard(     args...; kwargs...) = GeneralHazardModel(PHMethod(),  ar
 AcceleratedFaillureTime(args...; kwargs...) = GeneralHazardModel(AFTMethod(), args...; kwargs...)
 AcceleratedHazard(      args...; kwargs...) = GeneralHazardModel(AHMethod(),  args...; kwargs...)
 GeneralHazard(          args...; kwargs...) = GeneralHazardModel(GHMethod(),  args...; kwargs...)
+
+function StatsBase.fit(::Type{GHM}, 
+    formula1::FormulaTerm, 
+    formula2::FormulaTerm, 
+    df::DataFrame, 
+    optimizer) where {GHM <: GeneralHazard}
+    sdf = schema(df)
+    f1_applied, f2_applied = apply_schema.((formula1,formula2),Ref(sdf))
+    X1, X2 = modelcols.((f1,applied.rhs,f2_applied.rhs), Ref(df))
+    TΔ = modelcols(f1_applied.lhs, df)
+    return GeneralHazard(_method(GHM), TΔ[:,1], TΔ[:,2], _baseline(GHM), X1, X2, optimizer)
+end
+# function StatsBase.fit(::Type{GeneralHazard{M,B}}, formula::FormulaTerm, df::DataFrame, optimizer) where {M,B}
+#     sdf = schema(df)
+#     f1_applied = apply_schema(formula,sdf)
+#     X1 = modelcols(f1_applied.rhs,df)
+#     n = size(X1, 1) # number of rows
+#     X2 = Array{Float64, 2}(undef,n,0)
+#     TΔ = modelcols(f1_applied.lhs, df)
+#     return GeneralHazard(M(), TΔ[:,1], TΔ[:,2], B, X1, X2, optimizer)
+# end
 
 """
     simGH(n, model::GeneralHazardModel)
