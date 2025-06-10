@@ -1,4 +1,4 @@
-function cox_nllh(β, t, δ, X)
+function _cox_nllh(β, t, δ, X)
     Xβ = X * β # linear predictor.
     θ = exp.(Xβ)
 
@@ -47,7 +47,7 @@ struct CoxModel
         des = des[o,:]
 
         # Let me compute here the llh : 
-        optimiser = optimize(par -> cox_nllh(par, times, status, des), init, method=method, iterations=maxit)
+        optimiser = optimize(par -> _cox_nllh(par, times, status, des), init, method=method, iterations=maxit)
         return new(
             optimiser.minimizer,
             times,
@@ -56,8 +56,6 @@ struct CoxModel
         )
     end
 end
-
-mlogplik(X::CoxModel) = mlogplik(X.par, X.times, X.status, X.des)
 
 function StatsBase.fit(::Type{CoxModel},formula::FormulaTerm, df::DataFrame, method, maxit)
     formula_applied = apply_schema(formula,schema(df))
