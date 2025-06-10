@@ -64,7 +64,7 @@
 
       # Model fit
 
-      OPTCox = CoxModel(
+      OPTCox = CoxM(
             fill(0.0, size(des)[2]), 
             simdat,
             status,  
@@ -99,7 +99,7 @@ end
 
       ovarian = dataset("survival","ovarian")
 
-      OPTCox = fit(CoxModel, @formula(Surv(FUTime, FUStat) ~ Age + ECOG_PS), ovarian, NelderMead(), 1000)
+      OPTCox = fit(CoxM, @formula(Surv(FUTime, FUStat) ~ Age + ECOG_PS), ovarian, NelderMead(), 1000)
 
       betahat = OPTCox.par
       @test betahat[1] ≈ 0.16149 atol=1e-3

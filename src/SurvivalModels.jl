@@ -16,5 +16,5 @@ include("NonParametric/LogRankTest.jl")
 
 include("Semiparametric/CoxMPLE.jl")
 
-export KaplanMeier, LogRankTest, CoxModel, @formula, Surv
+export KaplanMeier, LogRankTest, CoxM, @formula, Surv
 end

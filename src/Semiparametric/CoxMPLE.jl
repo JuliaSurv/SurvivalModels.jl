@@ -20,8 +20,8 @@ function cox_nllh(β, t, δ, X)
 end
 
 """
-    CoxModel(init, times, status, des, method, maxit)
-    fit(CoxModel, @formula(Surv(T,Δ)~predictors), dataset, method, maxit)
+    CoxM(init, times, status, des, method, maxit)
+    fit(CoxM, @formula(Surv(T,Δ)~predictors), dataset, method, maxit)
 
 Maximum Partial likelihood estimation in the semiparametric 
 Cox Proportional Hazards model. W recomand using the formula interface. 
@@ -34,12 +34,12 @@ Cox Proportional Hazards model. W recomand using the formula interface.
 
 maxit: maximum number of iterations in "method"
 """
-struct CoxModel
+struct CoxM
     par::Vector{Float64}
     times::Vector{Float64}
     status::Vector{Bool}
     des::Matrix{Float64}
-    function CoxModel(init, times, status, des, method, maxit)
+    function CoxM(init, times, status, des, method, maxit)
 
         o = sortperm(times)
         times = times[o]
@@ -57,13 +57,13 @@ struct CoxModel
     end
 end
 
-mlogplik(X::CoxModel) = mlogplik(X.par, X.times, X.status, X.des)
+mlogplik(X::CoxM) = mlogplik(X.par, X.times, X.status, X.des)
 
-function StatsBase.fit(::Type{CoxModel},formula::FormulaTerm, df::DataFrame, method, maxit)
+function StatsBase.fit(::Type{CoxM},formula::FormulaTerm, df::DataFrame, method, maxit)
     formula_applied = apply_schema(formula,schema(df))
     predictors = modelcols(formula_applied.rhs, df)
     resp = modelcols(formula_applied.lhs, df)
-    return CoxModel(fill(0.0, size(predictors,2)), resp[:,1], resp[:,2], predictors, method, maxit)
+    return CoxM(fill(0.0, size(predictors,2)), resp[:,1], resp[:,2], predictors, method, maxit)
 end
 
 # Confidence interval : see in HazReg.
