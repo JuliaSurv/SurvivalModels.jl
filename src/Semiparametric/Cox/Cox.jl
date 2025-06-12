@@ -1,3 +1,21 @@
+"""
+    Cox(times, status, des, method, maxit)
+    fit(Cox, @formula(Surv(T,Δ)~predictors), dataset, method, maxit)
+
+
+A REPRENDRE. 
+
+Maximum Partial likelihood estimation in the semiparametric 
+Cox Proportional Hazards model. W recomand using the formula interface. 
+
+- times : times to event
+- status: vital status indicators (true or 1 = observed, false or 0 = censored)
+- des: design matrix for hazard-level effects
+
+- method: An algorithm from `Optim.jl`, e.g. `NelderMead`, `Newton`, `LBFGS`, `ConjugateGradient` or  `GradientDescent`. For the moment our implementation only supports Optim.jl, but a switch to Optimizations.jl will be done in a second step.
+
+maxit: maximum number of iterations in "method"
+"""
 abstract type Cox end
 nobs(M::Cox) = size(M.X,1) # Default to X being (n,m), should redefine for other choices; 
 nvar(M::Cox) = size(M.X,2)
@@ -47,28 +65,14 @@ function getβ(M::CoxLLH; max_iter = 10000, tol = 1e-9)
     return β
 end
 
-const design = Dict(
-    # Label => (constructor, plotting color)
-    #"R" => (CoxVR, :red),
-    "Jl"=> (CoxVJ, :blue),
-    "V1"=> (CoxV1, :orange),
-    "V2"=> (CoxV2, :brown),
-    "V3"=> (CoxV3, :purple),
-    "V4"=> (CoxV4, :green),
-    "V5"=> (CoxV5, :black)
-);
-
-    
-function StatsBase.fit(::Type{Cox}, formula::FormulaTerm, version::String = "V3")
-    cox_version = get(design, version)
-    version = cox_version[1]
+function StatsBase.fit(::Type{T}, formula::FormulaTerm, df::DataFrame) where T<:Cox
+    CoxVersion = isconcretetype(T) ? T : CoxV3
     formula_applied = apply_schema(formula,schema(df))
     resp = modelcols(formula_applied.lhs, df)
     X = modelcols(formula_applied.rhs, df)
     time = resp[:, 1]
     status = Bool.(resp[:, 2])
-    model = version(time, status, X)
-
+    model = CoxVersion(time, status, X)
     beta = getβ(model)
     return (model=model, coef=beta, formula=formula_applied)   
 end
