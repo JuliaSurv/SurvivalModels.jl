@@ -10,7 +10,7 @@ end
 
 function getβ(M::CoxV1)
     B0 = zeros(nvar(M))
-    o = optimize(par -> cox_nllh(par, M.T, M.Δ, M.X), B0, method=NelderMead, iterations=Inf)
+    o = optimize(par -> cox_nllh(par, M.T, M.Δ, M.X), B0, method=NelderMead, iterations=1000)
     return o.minimizer 
 end
 

@@ -99,7 +99,7 @@ end
 
       ovarian = dataset("survival","ovarian")
 
-      OPTCox = fit(CoxM, @formula(Surv(FUTime, FUStat) ~ Age + ECOG_PS), ovarian, NelderMead(), 1000)
+      OPTCox = fit(CoxV0, @formula(Surv(FUTime, FUStat) ~ Age + ECOG_PS), ovarian)
 
       betahat = OPTCox.par
       @test betahat[1] ≈ 0.16149 atol=1e-3
