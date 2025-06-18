@@ -61,25 +61,23 @@ To implement the Cox proportional hazards model, different versions were coded, 
 The final goal is to compare these versions and choose the most efficient one: the fastest and the closest to the true values
 of the coefficients. 
 
-#### V1: Implementation using the 'Optimization.jl' Julia package 
+### V1: Implementation using the 'Optimization.jl' Julia package 
 
-#### V2: Implementation using the gradient and the Hessian matrix
+### V2: Implementation using the gradient and the Hessian matrix
 
+### V3: Improved version of V2 (much faster) because non-allocative.
 
-V3: Improved version of V2 (much faster)
-
-
-
-V4: Majoration of the Hessian matrix
+### V4: Majoration of the Hessian matrix by a universal bound.
 
 
+## Comparison of the different methods speed
 
+We propose to compare the different methods on simulated data, with varying number of lines and columns, to verify empirically the theoretical complexity of the different methods. 
 
-
-
-## comparison
-
-
+```@example 1
+x = 10
+# you can import packages and do the comparison here. Please comment the code outside of code boxes to ensure that the file remains readable by a human :) 
+```
 
 
 
