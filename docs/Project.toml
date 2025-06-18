@@ -2,4 +2,5 @@
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 DocumenterCitations = "daee34ce-89f3-4625-b898-19384cb65244"
 LiveServer = "16fef848-5104-11e9-1b77-fb7a48bbb589"
+RDatasets = "ce6b1742-4840-55fa-b093-852dadbb1d8b"
 SurvivalModels = "230d35e3-bb2c-48f4-adfc-0b42c4b39395"

@@ -1,20 +1,22 @@
 module SurvivalModels
 
 # Write your package code here.
-
-using SurvivalBase: Surv, Strata
-using StatsAPI
-using StatsBase
-using StatsModels
-using DataFrames
-using Distributions
-using Optim
-using LogExpFunctions
+using RDatasets, Optimization, LinearAlgebra, Optim, 
+      BenchmarkTools, Test, RCall, PyCall, ForwardDiff, Survival, StatsBase,
+      Plots, CSV, Random, Distributions, DataFrames, TestItemRunner, StatsModels,
+      SurvivalBase, StatsAPI, LogExpFunctions, OptimizationOptimJL
 
 include("NonParametric/KaplanMeier.jl")
 include("NonParametric/LogRankTest.jl")
 
-include("Semiparametric/CoxMPLE.jl")
+include("Semiparametric/Cox/Cox.jl")
+include("Semiparametric/Cox/v0.jl")
+include("Semiparametric/Cox/v1.jl")
+include("Semiparametric/Cox/v2.jl")
+include("Semiparametric/Cox/v3.jl")
+include("Semiparametric/Cox/v4.jl")
+include("Semiparametric/Cox/v5.jl")
+include("Semiparametric/Cox/vJ.jl")
 
-export KaplanMeier, LogRankTest, CoxM, @formula, Surv
+export KaplanMeier, LogRankTest, Cox, @formula, Surv
 end

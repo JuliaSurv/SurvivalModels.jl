@@ -1,3 +1,22 @@
+"""
+The third implementation of the Cox proportional hazards model represents a highly optimized and significantly 
+faster iteration compared to previous implementation, CoxV2.
+
+- Xᵗ::Matrix{Float64}: The design matrix of covariates, transposed (m rows, n columns)
+- sX::Vector{Float64}: Sum of X' multiplied by Δ
+- T::Vector{Float64}: The observed times sorted in descending order.
+- Δ::Vector{Bool}: The event indicator vector (true for event, false for censoring)
+- loss::Vector{Float64}: Stores the current negative partial log-likelihood value
+- G::Vector{Float64}: Stores the gradient vector  
+- H::Matrix{Float64}: Stores the Hessian matrix 
+- S₁::Vector{Float64}: Sum of rⱼxₖⱼ
+- S₂::Matrix{Float64}: Sum of rⱼxₖⱼ * xⱼ
+- μ::Vector{Float64}: Updates the gradient and Hessian
+- η::Vector{Float64}: ηi = Xiβ
+- r::Vector{Float64}: ri = exp(ηi)
+- R::Vector{UnitRange{Int64}}:
+"""
+
 struct CoxV3 <: CoxLLH
     Xᵗ::Matrix{Float64}        # shape: (m, n)
     sX::Vector{Float64}       # shape: (m)

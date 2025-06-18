@@ -8,7 +8,7 @@ struct CoxV0 <: Cox
     end
 end
 
-function getβ(M::CoxV1)
+function getβ(M::CoxV0)
     B0 = zeros(nvar(M))
     o = optimize(par -> cox_nllh(par, M.T, M.Δ, M.X), B0, method=NelderMead, iterations=1000)
     return o.minimizer 
