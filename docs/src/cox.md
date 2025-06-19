@@ -55,6 +55,9 @@ end
 ```
 
 
+```@docs
+Cox
+```
 
 ## Different versions of the optimisation routine
 
@@ -85,9 +88,13 @@ CoxV2
 We propose to compare the different methods on simulated data, with varying number of lines and columns, to verify empirically the theoretical complexity of the different methods. 
 
 ```@example 1
-x=10
+using SurvivalModels
+using RDatasets
 
-
+ovarian = dataset("survival", "ovarian")
+ovarian.FUTime = Float64.(ovarian.FUTime)
+ovarian.FUStat = Bool.(ovarian.FUStat)
+model = fit(Cox, @formula(Surv(FUTime, FUStat) ~ Age + ECOG_PS), ovarian)
 ```
 
 
