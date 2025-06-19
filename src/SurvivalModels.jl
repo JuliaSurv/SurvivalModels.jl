@@ -1,9 +1,7 @@
 module SurvivalModels
 
 # Write your package code here.
-using RDatasets, Optimization, LinearAlgebra, Optim, RCall, PyCall, ForwardDiff, Survival, StatsBase,
-      Plots, CSV, Random, Distributions, DataFrames, TestItemRunner, StatsModels,
-      SurvivalBase, StatsAPI, LogExpFunctions, OptimizationOptimJL
+using Optimization, LinearAlgebra, Optim, ForwardDiff, Survival, StatsBase, Random, Distributions, DataFrames, StatsModels, SurvivalBase, StatsAPI, OptimizationOptimJL
 
 include("NonParametric/KaplanMeier.jl")
 include("NonParametric/LogRankTest.jl")
