@@ -11,10 +11,6 @@ In this documentation, we can cite stuff from the `references.bib` file like tha
 ```@index
 ```
 
-```@autodocs
-Modules = [SurvivalModels]
-```
-
 ```@bibliography
 Pages = ["index.md"]
 Canonical = false

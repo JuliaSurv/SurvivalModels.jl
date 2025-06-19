@@ -23,7 +23,6 @@ Types:
 - CoxLLH<:CoxGrad : abstract type for Cox models that are solved by optimizing the log-likelihood
 
 """
-
 abstract type Cox end
 nobs(M::Cox) = size(M.X,1) # Default to X being (n,m), should redefine for other choices; 
 nvar(M::Cox) = size(M.X,2)
