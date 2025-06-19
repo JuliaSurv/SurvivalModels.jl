@@ -75,7 +75,6 @@ function getβ(M::CoxLLH; max_iter = 10000, tol = 1e-9)
     return β
 end
 
-
 function StatsBase.fit(::Type{T}, formula::FormulaTerm, df::DataFrame) where T<:Cox
     CoxVersion = isconcretetype(T) ? T : CoxV3
     formula_applied = apply_schema(formula,schema(df))
@@ -85,6 +84,12 @@ function StatsBase.fit(::Type{T}, formula::FormulaTerm, df::DataFrame) where T<:
     status = Bool.(resp[2])
     model = CoxVersion(time, status, X)
     beta = getβ(model)
-    return (model=model, coef=beta, formula=formula_applied)   
+    # return (model=model, coef=beta, formula=formula_applied)   
+    return DataFrame(
+        β = beta
+        se = ???
+        F = ???
+        p = ????
+    )
 end
 

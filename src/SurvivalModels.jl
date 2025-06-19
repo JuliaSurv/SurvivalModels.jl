@@ -1,8 +1,7 @@
 module SurvivalModels
 
 # Write your package code here.
-using RDatasets, Optimization, LinearAlgebra, Optim, 
-      BenchmarkTools, Test, RCall, PyCall, ForwardDiff, Survival, StatsBase,
+using RDatasets, Optimization, LinearAlgebra, Optim, RCall, PyCall, ForwardDiff, Survival, StatsBase,
       Plots, CSV, Random, Distributions, DataFrames, TestItemRunner, StatsModels,
       SurvivalBase, StatsAPI, LogExpFunctions, OptimizationOptimJL
 
