@@ -18,7 +18,7 @@ makedocs(;
     format=Documenter.HTML(;
         canonical="https://JuliaSurv.github.io/SurvivalModels.jl",
         edit_link="main",
-        assets=String[],
+        assets=String["assets/citations.css"],
     ),
     pages=[
         "Home" => "index.md",

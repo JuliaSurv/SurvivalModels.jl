@@ -10,8 +10,6 @@ and columns to features
 - R::BitMatrix: A boolean risk matrix, where 'R[i,j]' is 'true' if
 individual 'j' is at risk at time 'T[i]'
 """
-
-
 struct CoxV2<:CoxGrad
     X::Matrix{Float64}
     T::Vector{Float64}

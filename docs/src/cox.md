@@ -1,6 +1,7 @@
 ```@meta
 CurrentModule = SurvivalModels
 ```
+
 # Cox models
 
 one ref: [cox1972regression](@cite).
@@ -63,7 +64,16 @@ of the coefficients.
 
 ### V1: Implementation using the 'Optimization.jl' Julia package 
 
+```@docs
+CoxV1
+```
+
 ### V2: Implementation using the gradient and the Hessian matrix
+
+
+```@docs
+CoxV2
+```
 
 ### V3: Improved version of V2 (much faster) because non-allocative.
 
@@ -75,8 +85,9 @@ of the coefficients.
 We propose to compare the different methods on simulated data, with varying number of lines and columns, to verify empirically the theoretical complexity of the different methods. 
 
 ```@example 1
-x = 10
-# you can import packages and do the comparison here. Please comment the code outside of code boxes to ensure that the file remains readable by a human :) 
+x=10
+
+
 ```
 
 
