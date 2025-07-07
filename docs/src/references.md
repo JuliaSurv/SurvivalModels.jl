@@ -13,4 +13,3 @@ Modules = [SurvivalModels]
  ```@bibliography
 *
 ```
-
