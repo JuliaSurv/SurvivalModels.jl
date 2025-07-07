@@ -171,7 +171,9 @@ We will then compare the results with Julia's and R's existing Cox implementatio
 using SurvivalModels, Plots, Random, Distributions, StatsBase, LinearAlgebra, DataFrames, RCall, Survival
 
 using SurvivalModels: getβ, CoxV0, CoxV1, CoxV2, CoxV3, CoxV4, CoxV5
+```
 
+```@example 1
 struct CoxVJ
     T::Vector{Float64}
     Δ::Vector{Bool}
@@ -185,6 +187,9 @@ function SurvivalModels.getβ(M::CoxVJ)
     return fit(Survival.CoxModel, M.X, Survival.EventTime.(M.T,M.Δ)).β
 end
 
+```
+
+```@example 1
 R"""
 library(survival)
 """
@@ -208,7 +213,9 @@ function SurvivalModels.getβ(M::CoxVR)
     @rget beta
     return beta
 end
+```
 
+```@example 1
 # Creating a dictionary for all the models:
 # Label => (constructor, plotting color)
 
@@ -299,7 +306,9 @@ function timing_graph(df)
         p = plot(p1,p2, size=(1200,600), plot_title = "Runtime (logscale) of the various implementations")
         return p
 end
+```
 
+```@example 1
 df = run_models()
 timing_graph(df)
 ```
