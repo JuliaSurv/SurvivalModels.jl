@@ -1,7 +1,7 @@
 module SurvivalModels
 
 # Write your package code here.
-using Optimization, LinearAlgebra, Optim, ForwardDiff, Survival, StatsBase, Random, Distributions, DataFrames, StatsModels, SurvivalBase, StatsAPI, OptimizationOptimJL
+using Optimization, LinearAlgebra, Optim, ForwardDiff, StatsBase, Random, Distributions, DataFrames, StatsModels, SurvivalBase, StatsAPI, OptimizationOptimJL
 
 using StatsBase: fit
 
