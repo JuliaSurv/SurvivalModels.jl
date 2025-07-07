@@ -1,11 +1,14 @@
 """
-The first implementation of the Cox proportional hazards model uses optimization libraries (Optimization.jl, Optim.jl) 
-for coefficient estimation.
+    CoxV1(T, Δ, X)
+    fit(CoxV1, @formula(Surv(T,Δ)~X), data = ...)
 
-- X::Matrix{Float64}: The design matrix of covariates, where rows correspond to individuals
-  and columns to features.
-- T::Vector{Float64}: The observed times, sorted in ascending order
-- Δ::Vector{Int64}: The event indicator vector (true for event, false for censoring)
+The first implementation of the Cox proportional hazards model uses optimization libraries (Optimization.jl, Optim.jl) for coefficient estimation.
+It uses the BFGS algorithm to minimize the negative partial log-likelihood. 
+
+Fields: 
+    - X::Matrix{Float64}: The design matrix of covariates, where rows correspond to individuals and columns to features.
+    - T::Vector{Float64}: The observed times, sorted in ascending order
+    - Δ::Vector{Int64}: The event indicator vector (true for event, false for censoring)
 """
 struct CoxV1<:Cox
     X::Matrix{Float64}

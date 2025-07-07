@@ -1,21 +1,22 @@
 """
-The fourth implementation of the Cox proportional hazards model uses Hessian approximation based on a pre-calculated 
-estimation. This version was created for when it might be difficult to work with full Hessian , 
-offering faster iterations by using a Hessian approximation.
+    CoxV4(T, Δ, X)
+    fit(CoxV4, @formula(Surv(T,Δ)~X), data = ...)
 
-- X::Matrix{Float64}: The design matrix of covariates, where rows correspond to individuals and columns to features
-- T::Vector{Float64}: The observed times sorted in ascending order
-- Δ::Vector{Bool}: The event indicator vector (true for event, false for censoring)
-- sX::Vector{Float64}: Sum of X' multiplied by Δ
-- G::Vector{Float64}: Stores the gradient vector
-- η::Vector{Float64}: ηi = Xiβ
-- A::Vector{Float64}: Ai = exp(ηi)
-- B::Vector{Float64}: Stores the majoration elements of the Hessian matrix
-- C::Vector{Float64}: Used in the mkA! function
-- K::Vector{Int64}: Number of events at each unique observed event time
-- loss::Vector{Float64}: Stores the current negative partial log-likelihood value, used in CoxLLH getβ
+The fourth implementation of the Cox proportional hazards model uses Hessian approximation based on a pre-calculated estimation. This version was created for when it might be difficult to work with full Hessian , offering faster iterations by using a Hessian approximation.
+
+Fields:
+    - X::Matrix{Float64}: The design matrix of covariates, where rows correspond to individuals and columns to features
+    - T::Vector{Float64}: The observed times sorted in ascending order
+    - Δ::Vector{Bool}: The event indicator vector (true for event, false for censoring)
+    - sX::Vector{Float64}: Sum of X' multiplied by Δ
+    - G::Vector{Float64}: Stores the gradient vector
+    - η::Vector{Float64}: ηi = Xiβ
+    - A::Vector{Float64}: Ai = exp(ηi)
+    - B::Vector{Float64}: Stores the majoration elements of the Hessian matrix
+    - C::Vector{Float64}: Used in the mkA! function
+    - K::Vector{Int64}: Number of events at each unique observed event time
+    - loss::Vector{Float64}: Stores the current negative partial log-likelihood value, used in CoxLLH getβ
 """
-
 struct CoxV4<:CoxLLH
     X::Matrix{Float64}
     T::Vector{Float64}
