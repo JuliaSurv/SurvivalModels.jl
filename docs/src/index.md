@@ -13,10 +13,6 @@ This documentation shall cover all the content of the package, which is not the 
 ```@index
 ```
 
-```@autodocs
-Modules = [SurvivalModels]
-```
-
 ```@bibliography
 Pages = ["index.md"]
 Canonical = false

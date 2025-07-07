@@ -5,6 +5,7 @@
       # Required packages
       using Distributions, Random, Optim
       using StableRNGs
+      using SurvivalModels: getβ, CoxV0, CoxV1, CoxV2, CoxV3, CoxV4, CoxV5
       rng = StableRNG(123)
 
       # Sample size
@@ -63,30 +64,11 @@
 
 
       # Model fit
-
-      OPTCox = CoxModel(
-            fill(0.0, size(des)[2]), 
-            simdat,
-            status,  
-            des,  
-            NelderMead(),
-            1000
-      )
-
-      betahat = OPTCox.par
-      @test betahat[1] ≈ -0.4926892848193542 atol=1e-2
-      @test betahat[2] ≈ 0.6790626074990427 atol=1e-2
-
-      # 95% Confidence intervals under the reparameterisation
-      # CI = ConfInt(FUN = OPTCox[2], MLE = OPTCox[1].minimizer, level = 0.95)
-
-      # CI = DataFrame(CI, :auto)
-      
-      # rename!( CI, ["Lower", "Upper"] )
-
-      # println(CI)
-
-
+      for M in (CoxV0, CoxV1, CoxV2, CoxV3, CoxV4, CoxV5)
+            β = getβ(M(simdat, status, des))
+            @test β[1] ≈ -0.4926892848193542 atol=1e-2
+            @test β[2] ≈ 0.6790626074990427 atol=1e-2
+      end
 end
 
 
@@ -96,13 +78,25 @@ end
 
       # Required packages
       using Distributions, Random, Optim, RDatasets
+      using SurvivalModels: getβ, CoxV0, CoxV1, CoxV2, CoxV3, CoxV4, CoxV5
 
       ovarian = dataset("survival","ovarian")
 
-      OPTCox = fit(CoxModel, @formula(Surv(FUTime, FUStat) ~ Age + ECOG_PS), ovarian, NelderMead(), 1000)
+      for M in (CoxV0, CoxV1, CoxV2, CoxV3, CoxV4, CoxV5)
+            β = fit(M, @formula(Surv(FUTime, FUStat) ~ Age + ECOG_PS), ovarian).β
+            @test β[1] ≈ 0.16149 atol=1e-3
+            @test β[2] ≈ 0.0187 atol=1e-3
+      end
 
-      betahat = OPTCox.par
-      @test betahat[1] ≈ 0.16149 atol=1e-3
-      @test betahat[2] ≈ 0.0187 atol=1e-3
+      colon = dataset("survival", "colon")
+      colon.Time = Float64.(colon.Time)
+      colon.Status = Bool.(colon.Status)
+      model_colon = fit(Cox, @formula(Surv(Time, Status) ~ Age + Rx), colon)
 
+      for M in (CoxV0, CoxV1, CoxV2, CoxV3, CoxV4, CoxV5)
+            β = fit(M, @formula(Surv(Time, Status) ~ Age + Rx), colon).β
+            @test β[1] ≈ -0.00205614 atol=1e-3
+            @test β[2] ≈ -0.0200488	 atol=1e-3
+            @test β[3] ≈ -0.439289   atol=1e-3
+      end
 end

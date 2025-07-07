@@ -11,6 +11,9 @@ concurrency:
   # Cancel intermediate builds: only if it is a pull request build.
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
+env:
+  R_HOME: "/opt/R/4.4.0/lib/R"
+  LD_LIBRARY_PATH: /opt/R/4.4.0/lib/R/lib
 jobs:
   test:
     name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }} - ${{ github.event_name }}
@@ -23,15 +26,22 @@ jobs:
       fail-fast: false
       matrix:
         version:
-          - '1.10'
-          - '1.6'
-          - 'nightly'
+          - 'lts'
+          - '1'
         os:
           - ubuntu-latest
         arch:
           - x64
     steps:
       - uses: actions/checkout@v4
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: '4.4.0'
+      - name: Install R packages survival & relsurv
+        uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          packages: |
+            any::survival
       - uses: julia-actions/setup-julia@v2
         with:
           version: ${{ matrix.version }}
@@ -54,6 +64,14 @@ jobs:
       statuses: write
     steps:
       - uses: actions/checkout@v4
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: '4.4.0'
+      - name: Install R packages survival & relsurv
+        uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          packages: |
+            any::survival
       - uses: julia-actions/setup-julia@v2
         with:
           version: '1'
