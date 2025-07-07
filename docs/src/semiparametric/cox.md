@@ -57,9 +57,7 @@ And the Hesian matrix:
 The information matrix is defined as the negative of the Hessian matrix of the log-likelihood function, evaluated at the point of the estimated coefficients. 
 
 ```math
-
 I(\hat{\boldsymbol{\beta}}) = -H(\hat{\boldsymbol{\beta}})
-
 ```
 
 But, in the earlier formula, $\mathbf{H}_{\text{Loss}}$​ was for Loss(β), which is -log L(β) $\mathbf{H}_{\text{Loss}} = - \mathbf{H}_{\text{log-likelihood}}$. Therefore, the observed Information Matrix is equal to $\mathbf{H}_{\text{Loss}}$ itself.
