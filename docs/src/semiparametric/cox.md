@@ -4,13 +4,11 @@ CurrentModule = SurvivalModels
 
 # Cox models
 
-one ref: [cox1972regression](@cite).
-
 ## Introduction to Survival Analysis
 
 ## The Cox Proportional Hazards Model: Theory
 
-The Cox Proportional Hazards Model is a semi-parametric model used to analyze time-to-event data. It models the relationship between the survival time of an individual and a set of explanatory variables (covariates). 
+The Cox Proportional Hazards Model [cox1972regression](@cite) is a semi-parametric model used to analyze time-to-event data. It models the relationship between the survival time of an individual and a set of explanatory variables (covariates). 
 
 ### 1. The Hazard Function
 The model is defined by the **hazard function**, which describes the risk of an event occuring at time $t$, given that the event has not occured before the time $t$. The hazard function is given by:
