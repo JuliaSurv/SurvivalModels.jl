@@ -79,9 +79,7 @@ To find the optimal $mathbf{\beta}$, we need to minimize the loss function.
 The gradient of the loss function with respect to a specific coefficient $\beta_k$ is:
 
 ```math
-
 \frac{\partial}{\partial \beta_k} \text{Loss}(\mathbf{\beta}) = - \sum_{i=1}^{n} \left( X_{ik} - \frac{\sum_{j \in R_i} \exp(\mathbf{\beta}^T\mathbf{X}_j) X_{jk}}{\sum_{j \in R_i} \exp(\mathbf{\beta}^T\mathbf{X}_j)} \right)
-
 ```
 ### 5. Hessian Matrix of the Loss Function
 
@@ -90,10 +88,9 @@ For optimization algorithms like Newton-Raphson and for calculating standard err
 The entry for the $k$-th row and $l$-th column of the Hessian matrix is:
 
 ```math
-
 \frac{\partial^2}{\partial \beta_k \partial \beta_l} \text{Loss}(\mathbf{\beta}) = \sum_{i=1}^{n} \left[ \frac{\sum_{j \in R_i} \exp(\mathbf{\beta}^T\mathbf{X}_j) X_{jk}X_{jl}}{\sum_{j \in R_i} \exp(\mathbf{\beta}^T\mathbf{X}_j)} - \frac{\left( \sum_{j \in R_i} \exp(\mathbf{\beta}^T\mathbf{X}_j) X_{jk} \right) \left( \sum_{j \in R_i} \exp(\mathbf{\beta}^T\mathbf{X}_j) X_{jl} \right)}{\left( \sum_{j \in R_i} \exp(\mathbf{\beta}^T\mathbf{X}_j) \right)^2} \right]
-
 ```
+
 ### 6. Information Matrix and Variance-Covariance Matrix
 
 The observed Information Matrix, $I(\hat{\boldsymbol{\beta}})$, is defined as the negative of the Hessian matrix of the log-likelihood function, evaluated at the maximum likelihood estimates $\hat{\boldsymbol{\beta}}$.
@@ -106,7 +103,9 @@ But, in the earlier formula, $\mathbf{H}_{\text{Loss}}$​ was for Loss(β), whi
 
 The variance (and covariance) of our estimators $\hat{\boldsymbol{\beta}}$ are obtained by inverting the observed information matrix.
 
-$$\text{Var}(\hat{\boldsymbol{\beta}}) = I(\hat{\boldsymbol{\beta}})^{-1}$$
+```math
+\text{Var}(\hat{\boldsymbol{\beta}}) = I(\hat{\boldsymbol{\beta}})^{-1}
+```
 
 This final matrix contains:
 - On its diagonal: the variances of each coefficient ($\text{Var}(\hat{\beta}_1)$, $\text{Var}(\hat{\beta}_2)$, ...).
@@ -116,12 +115,17 @@ This final matrix contains:
 
 The standard error for a specific coefficient ($\hat{\beta}_k$) is the square root of its variance.
 
-$$SE(\hat{\beta}_k) = \sqrt{\text{Var}(\hat{\beta}_k)}$$
+```math
+SE(\hat{\beta}_k) = \sqrt{\text{Var}(\hat{\beta}_k)}
+```
 
 ### 8.  Wald Test for Significance
 
 To determine if a variable has a statistically significant effect, a Wald test is performed. A z-score is calculated:
-$$z = \frac{\text{Coefficient}}{\text{Erreur Type}} = \frac{\hat{\beta}}{SE(\hat{\beta})}$$
+
+```math
+z = \frac{\text{Coefficient}}{\text{Erreur Type}} = \frac{\hat{\beta}}{SE(\hat{\beta})}
+```
 
 This $z$-score is then compared to a normal distribution to obtain a $p$-value. A low $p$-value (typically < 0.05) suggests that the coefficient is significantly different from zero.
 
@@ -132,7 +136,9 @@ The standard error allows for the construction of a confidence interval (CI) aro
 
 The general formula for a $(1 - \alpha) \times 100\%$ confidence interval is:
 
-$$\text{IC pour } \hat{\beta} = \hat{\beta} \pm z_{\alpha/2} \times SE(\hat{\beta})$$
+```math
+\text{IC pour } \hat{\beta} = \hat{\beta} \pm z_{\alpha/2} \times SE(\hat{\beta})
+```
 
 
 
