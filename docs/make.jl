@@ -22,6 +22,8 @@ makedocs(;
     ),
     pages=[
         "Home" => "index.md",
+        "kaplanmeier.md",
+        "logranktest.md",
         "cox.md",
         "references.md",
     ],
