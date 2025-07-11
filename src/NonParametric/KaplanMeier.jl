@@ -63,5 +63,36 @@ end
 greenwood(S::KaplanMeier, t) = sum(S.∂σ[i] for i in eachindex(S.t) if S.t[i] < t)
 
 function StatsAPI.confint(S::KaplanMeier; level::Real=0.05)
-    # TODO 
+    n = length(S.t)
+    surv = ones(Float64, n)
+    for i in 1:n
+        surv[i] = i == 1 ? 1 - S.∂Λ[1] : surv[i-1] * (1 - S.∂Λ[i])
+    end
+    # Greenwood variance at each time
+    var = zeros(Float64, n)
+    acc = 0.0
+    for i in 1:n
+        acc += S.∂σ[i]
+        var[i] = (surv[i]^2) * acc
+    end
+    # z-value for confidence level
+    z = quantile(Normal(), 1 - level/2)
+    lower = similar(surv)
+    upper = similar(surv)
+    for i in 1:n
+        if surv[i] == 0.0
+            lower[i] = 0.0
+            upper[i] = 0.0
+        else
+            se = sqrt(var[i])
+            loglog = log(-log(surv[i]))
+            halfwidth = z * se / (surv[i] * abs(log(surv[i])))
+            lower[i] = exp(-exp(loglog + halfwidth))
+            upper[i] = exp(-exp(loglog - halfwidth))
+            # Clamp to [0,1]
+            lower[i] = max(0.0, min(1.0, lower[i]))
+            upper[i] = max(0.0, min(1.0, upper[i]))
+        end
+    end
+    return DataFrame(time=S.t, surv=surv, lower=lower, upper=upper)
 end

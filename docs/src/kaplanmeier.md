@@ -75,6 +75,18 @@ A $(1-\alpha) \times 100\%$ confidence interval for $S(t)$ can be constructed us
 \log(-\log \hat{S}(t)) \pm z_{1-\alpha/2} \frac{1}{\log \hat{S}(t)} \sqrt{\widehat{\mathrm{Var}}[\hat{S}(t)]}
 ```
 
+```@example
+using SurvivalModels
+
+T = [2, 3, 4, 5, 8]
+Δ = [1, 1, 0, 1, 0]
+km = KaplanMeier(T, Δ)
+
+# Compute confidence intervals at each event time (default 95%)
+ci = StatsAPI.confint(km)
+first(ci, 5)  # show the first 5 rows
+```
+
 ## References
 
 ```@docs
