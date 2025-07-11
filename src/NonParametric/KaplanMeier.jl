@@ -42,10 +42,8 @@ struct KaplanMeier{T}
             # Imput this data in the processes: 
             ∂N[i] = rs_events
             Y[i] = at_risk
-            if  && at_risk > events
-                ∂Λ[i] = at_risk == 0 ? 0 : rs_events / at_risk
-                ∂σ[i] = (at_risk == 0 || at_risk == rs_events) ? 0 : rs_events / (at_risk * (at_risk - rs_events))
-            end
+            ∂Λ[i] = at_risk == 0 ? 0 : rs_events / at_risk
+            ∂σ[i] = (at_risk == 0 || at_risk == rs_events) ? 0 : rs_events / (at_risk * (at_risk - rs_events))
             # Decrease the number of people at risk by the risk set size: 
             at_risk -= rs_size
         end
