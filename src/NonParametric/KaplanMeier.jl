@@ -25,7 +25,7 @@ struct KaplanMeier{T}
         o = sortperm(T)
         To = T[o]
         Δo = Bool.(Δ[o])
-        t = unique(To)
+        t = unique(To).*1.0 # Convert to Float64 for consistency
         N, n = length(To), length(t)
         ∂N, Y, ∂Λ, ∂σ = zeros(Int, n), zeros(Int, n), zero(t), zero(t)
         j = 1
