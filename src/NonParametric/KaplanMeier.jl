@@ -1,18 +1,59 @@
 """
     KaplanMeier(T, Δ)
+    fit(KaplanMeier, @formula(Surv(T, Δ) ~ 1), df)
 
 Efficient Kaplan-Meier estimator.
 
-Arguments:
+# Mathematical Description
+
+Suppose we observe ``n`` individuals, with observed times ``T_1, T_2, \\ldots, T_n`` and event indicators ``\\Delta_1, \\Delta_2, \\ldots, \\Delta_n`` (``\\Delta_i = 1`` if the event occurred, ``0`` if censored).
+
+Let ``t_1 < t_2 < \\cdots < t_k`` be the ordered unique event times.
+
+- ``d_j``: number of events at time ``t_j``
+- ``Y_j``: number of individuals at risk just before ``t_j``
+
+The **Kaplan-Meier estimator** of the survival function ``S(t)`` is:
+
+```math
+\\hat{S}(t) = \\prod_{t_j \\leq t} \\left(1 - \\frac{d_j}{Y_j}\\right)
+```
+
+This product runs over all event times ``t_j`` less than or equal to ``t``.
+
+The Greenwood estimator for the variance of ``\\hat{S}(t)`` is:
+
+```math
+\\widehat{\\mathrm{Var}}[\\hat{S}(t)] = \\hat{S}(t)^2 \\sum_{t_j \\leq t} \\frac{d_j}{Y_j (Y_j - d_j)}
+```
+
+# Arguments
 - `T`: Vector of event or censoring times.
 - `Δ`: Event indicator vector (`1` if event, `0` if censored).
 
-Stores:
+# Stores
 - `t`: Sorted unique event times.
-- `∂N`: Number of uncensored death at each time point.
-- `Y`: Number of at risk individual at each time point.
+- `∂N`: Number of uncensored deaths at each time point.
+- `Y`: Number of at risk individuals at each time point.
 - `∂Λ`: Increments of cumulative hazard.
 - `∂σ`: Greenwood variance increments.
+
+# Example: Direct usage
+
+```julia
+using SurvivalModels
+T = [2, 3, 4, 5, 8]
+Δ = [1, 1, 0, 1, 0]
+km = KaplanMeier(T, Δ)
+```
+
+# Example: Using the fit() interface
+
+```julia
+using SurvivalModels, DataFrames, StatsModels
+df = DataFrame(time=T, status=Δ)
+km2 = fit(KaplanMeier, @formula(Surv(time, status) ~ 1), df)
+```
 """
 struct KaplanMeier{T}
     t::Vector{T}
@@ -57,9 +98,18 @@ function StatsBase.fit(::Type{T}, formula::FormulaTerm, df::DataFrame) where {T<
 end
 
 # Survival estimate Ŝ(t)
-(S::KaplanMeier)(t) = prod(1 - S.∂Λ[i] for i in eachindex(S.t) if S.t[i] < t)
+(S::KaplanMeier)(t) = prod(1 - S.∂Λ[i] for i in eachindex(S.t) if S.t[i] < t, init=1.0)
 
-# Greenwood variance estimate at time t
+"""
+    greenwood(S::KaplanMeier, t)
+
+Compute the Greenwood variance estimate for the Kaplan-Meier survival estimator at time `t`.
+
+The Greenwood formula provides an estimate of the variance of the Kaplan-Meier survival function at a given time point. For a fitted Kaplan-Meier object `S`, the variance at time `t` is:
+
+```math
+\\widehat{\\mathrm{Var}}[\\hat{S}(t)] = \\hat{S}(t)^2 \\sum_{t_j < t} \\frac{d_j}{Y_j (Y_j - d_j)}
+"""
 greenwood(S::KaplanMeier, t) = sum(S.∂σ[i] for i in eachindex(S.t) if S.t[i] < t)
 
 function StatsAPI.confint(S::KaplanMeier; level::Real=0.05)
