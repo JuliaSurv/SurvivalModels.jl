@@ -280,22 +280,44 @@ const design = Dict(
 "VJ"=> (CoxVJ, :black)
 );
 
-# Function to simulate data for different rows and column numbers (n max = 2000 et m max = 20):
-function simulate_survival_data(n, m; censor_rate = 0.2, β=randn(m))
-    Random.seed!(42)
-    X = hcat(
-        [randn(n)       for _ in 1:cld(m,3)]..., # about 1/3
-        [rand(n)        for _ in 1:cld(m,3)]..., # about 1/3
-        [exp.(randn(n)) for _ in 1:(m-2cld(m,3))]... # the rest. 
-    )
-    η = X * β
-    λ₀ = 1 
-    U = rand(n)
-    O = -log.(U) ./ (λ₀ .* exp.(η))
-    lc = quantile(O, 1 - censor_rate)
-    C = rand(Exponential(lc), n)
+
+function simulate_survival_data(n, m; censor_rate = 0.2, β=ones(m) , 
+                                theta0 = [0.1, 2.0, 5.0]) 
+    
+    # X = hcat(
+    #     [randn(n)       for _ in 1:cld(m,3)]..., # about 1/3
+    #     [rand(n)        for _ in 1:cld(m,3)]..., # about 1/3
+    #     [exp.(randn(n)) for _ in 1:(m-2cld(m,3))]... # the rest. 
+    # )
+
+    # A first sampling strategy: 
+    #     η = X * β
+    #     λ₀ = 1 
+    #     U = rand(n)
+    #     O = -log.(U) ./ (λ₀ .* exp.(η))
+    #     lc = quantile(O, 1 - censor_rate)
+    #     C = rand(Exponential(lc), n)
+
+    # Another one: 
+          X = randn(n,m)
+          O = rand.(Exponential.(exp.(.- X * β)))
+          C = rand(Exponential(1/3),n)
+
+    # But we chose power generalized Weibull for the \lamda_0:
+    # function qPGW(p, sigma, nu, gamma)
+    #     val = sigma * ((1 - log(1 - p))^gamma - 1)^(1 / nu)
+    #     return val
+    # end
+    # distu = Uniform(0, 1)
+    # u = rand(distu, n) 
+    # exp_xbeta = exp.(X * β)
+    # p0 = 1.0 .- exp.(log.(u) ./ exp_xbeta)
+    # O = [qPGW(prob, theta0[1], theta0[2], theta0[3]) for prob in p0]
+    # lc = quantile(O, 1 - censor_rate) 
+    # C = rand(Exponential(lc), n)
+
     T = min.(O, C)
-    Δ = Bool.(T .<= C)
+    Δ = Bool.(O .<= C) 
     return (T, Δ, X)
 end
 
@@ -448,8 +470,6 @@ end
 
 beta_wrt_truth(df)
 ```
-
-
 
 ```@bibliography
 Pages = ["cox.md"]
