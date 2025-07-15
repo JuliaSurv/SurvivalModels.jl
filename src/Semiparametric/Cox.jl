@@ -79,12 +79,12 @@ function getβ(M::CoxLLH; max_iter = 10000, tol = 1e-9)
     return β
 end
 
-include("v0.jl")
-include("v1.jl")
-include("v2.jl")
-include("v3.jl")
-include("v4.jl")
-include("v5.jl")
+include("Cox/v0.jl")
+include("Cox/v1.jl")
+include("Cox/v2.jl")
+include("Cox/v3.jl")
+include("Cox/v4.jl")
+include("Cox/v5.jl")
 
 # Calculate the hessian matrix for the different Cox versions:
 

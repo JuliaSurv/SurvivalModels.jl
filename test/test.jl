@@ -1,4 +1,3 @@
-
 @testitem "Check Cox" begin
 
 
@@ -75,7 +74,6 @@ end
 
 @testitem "Check Cox on real data" begin
 
-
       # Required packages
       using Distributions, Random, Optim, RDatasets
       using SurvivalModels: getβ, CoxV0, CoxV1, CoxV2, CoxV3, CoxV4, CoxV5
@@ -99,4 +97,151 @@ end
             @test β[2] ≈ -0.0200488	 atol=1e-3
             @test β[3] ≈ -0.439289   atol=1e-3
       end
+end
+
+
+@testitem "Verify the correctness of the KaplanMeier implementation" begin
+    using SurvivalModels: KaplanMeier
+
+    # Example data: 5 subjects, 3 events, 2 censored
+    # Times:    2, 3, 4, 5, 8
+    # Status:   1, 1, 0, 1, 0
+    T = [2, 3, 4, 5, 8]
+    Δ = [1, 1, 0, 1, 0]
+
+    km = KaplanMeier(T, Δ)
+
+    @test km.t == [2, 3, 4, 5, 8]
+    @test km.∂N == [1, 1, 0, 1, 0]
+    @test km.Y == [5, 4, 3, 2, 1]
+
+    S = [1.0]
+    for i in 1:length(km.t)
+        S_new = S[end] * (1 - km.∂Λ[i])
+        push!(S, S_new)
+    end
+    S = S[2:end]
+    @test isapprox(S[1], 0.8; atol=1e-8)
+    @test isapprox(S[2], 0.6; atol=1e-8)
+    @test isapprox(S[3], 0.6; atol=1e-8)
+    @test isapprox(S[4], 0.3; atol=1e-8)
+    @test isapprox(S[5], 0.3; atol=1e-8)
+
+    # Now test with duplicate times (events and censored at same time)
+    # Times:    2, 2, 3, 3, 4, 5, 8
+    # Status:   1, 0, 1, 0, 0, 1, 0
+    T2 = [2, 2, 3, 3, 4, 5, 8]
+    Δ2 = [1, 0, 1, 0, 0, 1, 0]
+
+    km2 = KaplanMeier(T2, Δ2)
+
+    @test km2.t == [2, 3, 4, 5, 8]
+    @test km2.∂N == [1, 1, 0, 1, 0]
+    @test km2.Y == [7, 5, 3, 2, 1]
+
+    # Survival probabilities:
+    # S(2) = 1 * (1 - 1/7) = 6/7 ≈ 0.8571428571
+    # S(3) = (6/7) * (1 - 1/5) = (6/7)*(4/5) = 24/35 ≈ 0.6857142857
+    # S(4) = 24/35 (no event)
+    # S(5) = (24/35) * (1 - 1/2) = (24/35)*(1/2) = 12/35 ≈ 0.3428571429
+    # S(8) = 12/35 (no event)
+    S2 = [1.0]
+    for i in 1:length(km2.t)
+        S_new = S2[end] * (1 - km2.∂Λ[i])
+        push!(S2, S_new)
+    end
+    S2 = S2[2:end]
+    @test isapprox(S2[1], 6/7; atol=1e-8)
+    @test isapprox(S2[2], 24/35; atol=1e-8)
+    @test isapprox(S2[3], 24/35; atol=1e-8)
+    @test isapprox(S2[4], 12/35; atol=1e-8)
+    @test isapprox(S2[5], 12/35; atol=1e-8)
+end
+
+@testitem "Verify the correctness of the LogRankTest implementation" begin
+    using SurvivalModels: LogRankTest
+    using Random
+
+    # 1. Two groups, clear separation
+    T = [1, 2, 3, 4, 5, 6, 7, 8]
+    Δ = [1, 1, 1, 1, 1, 1, 1, 1]
+    group = [1, 1, 1, 1, 2, 2, 2, 2]
+    strata = ones(Int, 8)
+    # Group 1: early events, Group 2: late events
+    lrt = LogRankTest(T, Δ, group, strata)
+    @test lrt.stat > 3.84  # Should be significant at p < 0.05
+    @test lrt.pval < 0.05
+
+    # 2. Two groups, identical data
+    T2 = [1, 2, 3, 4, 1, 2, 3, 4]
+    Δ2 = [1, 1, 1, 1, 1, 1, 1, 1]
+    group2 = [1, 1, 1, 1, 2, 2, 2, 2]
+    lrt2 = LogRankTest(T2, Δ2, group2, strata)
+    @test lrt2.stat ≈ 0 atol=1e-8
+    @test lrt2.pval ≈ 1 atol=1e-8
+
+    # 3. Duplicate times, mix of events and censored
+    T3 = [2, 2, 3, 3, 4, 5, 8, 8]
+    Δ3 = [1, 0, 1, 0, 0, 1, 0, 1]
+    group3 = [1, 1, 1, 2, 2, 2, 2, 2]
+    lrt3 = LogRankTest(T3, Δ3, group3, strata)
+    @test lrt3.stat ≥ 0
+    @test 0.0 ≤ lrt3.pval ≤ 1.0
+
+    # 4. All uncensored data 
+    T4 = [1, 2, 3, 4, 5, 6]
+    Δ4 = ones(Int, 6)
+    group4 = [1, 1, 1, 2, 2, 2]
+    strata = ones(Int, 6)
+    lrt4 = LogRankTest(T4, Δ4, group4, strata)
+    @test lrt4.stat ≥ 0
+    @test lrt4.pval ≈ 0 atol=1e-8
+
+    # Two strata, two groups, identical within strata
+    T = [1, 2, 3, 4, 1, 2, 3, 4]
+    Δ = [1, 1, 1, 1, 1, 1, 1, 1]
+    group = [1, 1, 2, 2, 2, 2, 1, 1]
+    strata = [1, 1, 1, 1, 2, 2, 2, 2]
+
+    lrt = LogRankTest(T, Δ, group, strata)
+    @test lrt.stat ≈ 0 atol=1e-8
+    @test lrt.pval ≈ 1 atol=1e-8
+
+    # Now, make group 2 in stratum 2 have later events
+    T2 = [1, 2, 3, 4, 1, 2, 7, 8]
+    lrt2 = LogRankTest(T2, Δ, group, strata)
+    @test lrt2.stat > 0
+    @test 0 < lrt2.pval < 1
+end
+
+@testitem "fit() interface matches direct constructor for KaplanMeier and LogRankTest" begin
+    using SurvivalModels: KaplanMeier, LogRankTest
+    using DataFrames, StatsModels
+
+    # Data for KaplanMeier
+    T = [2, 3, 4, 5, 8]
+    Δ = [1, 1, 0, 1, 0]
+    df = DataFrame(time=T, status=Δ)
+
+    # Direct and fit interface for KaplanMeier
+    km1 = KaplanMeier(T, Δ)
+    km2 = fit(KaplanMeier, @formula(Surv(time, status) ~ 1), df)
+    @test km1.t == km2.t
+    @test km1.∂N == km2.∂N
+    @test km1.Y == km2.Y
+    @test all(isapprox.(km1.∂Λ, km2.∂Λ; atol=1e-12))
+
+    # Data for LogRankTest
+    T = [1, 2, 3, 4, 1, 2, 3, 4]
+    Δ = [1, 1, 1, 1, 1, 1, 1, 1]
+    group = [1, 1, 2, 2, 1, 1, 2, 2]
+    strata = [1, 1, 1, 1, 2, 2, 2, 2]
+    df2 = DataFrame(time=T, status=Δ, group=group, strata=strata)
+
+    # Direct and fit interface for LogRankTest
+    lrt1 = LogRankTest(T, Δ, group, strata)
+    lrt2 = fit(LogRankTest, @formula(Surv(time, status) ~ Strata(strata) + group), df2)
+    @test isapprox(lrt1.stat, lrt2.stat; atol=1e-8)
+    @test lrt1.df == lrt2.df
+    @test isapprox(lrt1.pval, lrt2.pval; atol=1e-8)
 end

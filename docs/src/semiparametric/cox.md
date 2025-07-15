@@ -309,8 +309,9 @@ end
 ```
 
 ```@example 1
-df = run_models()
-timing_graph(df)
+x=1
+# df = run_models()
+# timing_graph(df)
 ```
 
 comments on the graph. 
@@ -318,7 +319,8 @@ comments on the graph.
 A zoom on our implementation vs Survival.jl vs R::survival: 
 
 ```@example 1
-timing_graph(filter(r -> r.name ∈ ("V3", "VJ", "VR"), df))
+x=1
+# timing_graph(filter(r -> r.name ∈ ("V3", "VJ", "VR"), df))
 ```
 
 So we are about x10 faster than the reference implmentation of R (and than the previous Julia attemps) on this example. 
@@ -364,7 +366,7 @@ function beta_correctness_graphs(df; ref="VJ")
     return p
 end
 
-beta_correctness_graphs(df)
+# beta_correctness_graphs(df)
 ```
 
 ```@example 1
@@ -396,7 +398,7 @@ function beta_wrt_truth(df)
     return p
 end   
 
-beta_wrt_truth(df)
+# beta_wrt_truth(df)
 ```
 
 
