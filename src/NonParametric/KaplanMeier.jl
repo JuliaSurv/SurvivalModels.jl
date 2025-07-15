@@ -98,7 +98,7 @@ function StatsBase.fit(::Type{T}, formula::FormulaTerm, df::DataFrame) where {T<
 end
 
 # Survival estimate Ŝ(t)
-(S::KaplanMeier)(t) = prod(1 - S.∂Λ[i] for i in eachindex(S.t) if S.t[i] < t, init=1.0)
+(S::KaplanMeier)(t) = prod((1 - S.∂Λ[i] for i in eachindex(S.t) if S.t[i] < t); init=1.0)
 
 """
     greenwood(S::KaplanMeier, t)
