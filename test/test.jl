@@ -2,7 +2,7 @@
 
 
       # Required packages
-      using Distributions, Random, Optim
+      using Distributions, Random
       using StableRNGs
       using SurvivalModels: getβ, CoxV0, CoxV1, CoxV2, CoxV3, CoxV4, CoxV5
       rng = StableRNG(123)
@@ -75,7 +75,7 @@ end
 @testitem "Check Cox on real data" begin
 
       # Required packages
-      using Distributions, Random, Optim, RDatasets
+      using Distributions, Random, RDatasets
       using SurvivalModels: getβ, CoxV0, CoxV1, CoxV2, CoxV3, CoxV4, CoxV5
 
       ovarian = dataset("survival","ovarian")
@@ -244,4 +244,136 @@ end
     @test isapprox(lrt1.stat, lrt2.stat; atol=1e-8)
     @test lrt1.df == lrt2.df
     @test isapprox(lrt1.pval, lrt2.pval; atol=1e-8)
+end
+
+@testitem "GeneralHazardModel direct construction and simulation" begin
+    using SurvivalModels, Distributions, Random
+
+    n = 1000
+    Random.seed!(123)
+    X1 = randn(n, 2)
+    X2 = randn(n, 2)
+    T = rand(Weibull(2, 1), n)
+    Δ = rand(Bool, n)
+    α = [0.1, -0.2]
+    β = [0.5, 0.7]
+
+    # Direct construction for GH
+    model = GeneralHazardModel(GHMethod(), T, Δ, Weibull(2, 1), X1, X2, α, β)
+    @test model isa GeneralHazardModel{GHMethod, Weibull}
+
+    # Direct construction for PH (X2, α unused)
+    model_ph = GeneralHazardModel(PHMethod(), T, Δ, Weibull(2, 1), X1, zeros(n,0), zeros(0), β)
+    @test model_ph isa GeneralHazardModel{PHMethod, Weibull}
+
+    # Direct construction for AFT (X2, α unused)
+    model_aft = GeneralHazardModel(AFTMethod(), T, Δ, Weibull(2, 1), X1, zeros(n,0), zeros(0), β)
+    @test model_aft isa GeneralHazardModel{AFTMethod, Weibull}
+
+    # Direct construction for AH (X1, β unused)
+    model_ah = GeneralHazardModel(AHMethod(), T, Δ, Weibull(2, 1), zeros(n,0), X2, α, zeros(0))
+    @test model_ah isa GeneralHazardModel{AHMethod, Weibull}
+
+    # Simulation
+    simdat = simGH(n, model)
+    @test length(simdat) == n
+    @test all(simdat .> 0)
+end
+
+@testitem "GeneralHazardModel fit interface matches direct construction (simple case)" begin
+    using SurvivalModels, Distributions, DataFrames, StatsModels
+
+    n = 100
+    Random.seed!(42)
+    X1 = randn(n, 1)
+    X2 = randn(n, 1)
+    T = rand(Weibull(2, 1), n)
+    Δ = trues(n)
+    α = [0.0]
+    β = [0.0]
+
+    # Direct construction
+    model = GeneralHazardModel(GHMethod(), T, Δ, Weibull(2, 1), X1, X2, α, β)
+    @test model isa GeneralHazardModel{GHMethod, Weibull}
+
+    # Fit interface (should not error, but will not recover true params for random data)
+    df = DataFrame(time=T, status=Δ, x1=X1[:,1], x2=X2[:,1])
+    fitted = fit(GeneralHazard, @formula(Surv(time, status) ~ x1), @formula(Surv(time, status) ~ x2), df)
+    @test fitted isa GeneralHazardModel{GHMethod, Weibull}
+    @test length(fitted.α) == 1
+    @test length(fitted.β) == 1
+end
+
+@testitem "GeneralHazardModel fit interface for PH/AFT/AH" begin
+    using SurvivalModels, Distributions, DataFrames, StatsModels
+
+    n = 100
+    Random.seed!(42)
+    X = randn(n, 2)
+    T = rand(Weibull(2, 1), n)
+    Δ = trues(n)
+    df = DataFrame(time=T, status=Δ, x1=X[:,1], x2=X[:,2])
+
+    # PH
+    model_ph = fit(ProportionalHazard, @formula(Surv(time, status) ~ x1 + x2), df)
+    @test model_ph isa GeneralHazardModel{PHMethod, Weibull}
+    @test length(model_ph.β) == 2
+
+    # AFT
+    model_aft = fit(AcceleratedFaillureTime, @formula(Surv(time, status) ~ x1 + x2), df)
+    @test model_aft isa GeneralHazardModel{AFTMethod, Weibull}
+    @test length(model_aft.β) == 2
+
+    # AH
+    model_ah = fit(AcceleratedHazard, @formula(Surv(time, status) ~ x1 + x2), df)
+    @test model_ah isa GeneralHazardModel{AHMethod, Weibull}
+    @test length(model_ah.α) == 2
+end
+
+@testitem "GeneralHazardModel parameter recovery on simulated data" begin
+    using SurvivalModels, Distributions, DataFrames, StatsModels, Random
+
+    n = 2000
+    Random.seed!(2024)
+
+    # --- GH Model ---
+    X1 = randn(n, 2)
+    X2 = randn(n, 2)
+    β_true = [0.5, -0.7]
+    α_true = [0.3, -0.2]
+    dist = Weibull(2.0, 1.5)
+    model = GeneralHazardModel(GHMethod(), zeros(n), trues(n), dist, X1, X2, α_true, β_true)
+    T = simGH(n, model)
+    Δ = trues(n)
+    df = DataFrame(time=T, status=Δ, x1=X1[:,1], x2=X1[:,2], z1=X2[:,1], z2=X2[:,2])
+    fitmodel = fit(GeneralHazard, @formula(Surv(time, status) ~ x1 + x2), @formula(Surv(time, status) ~ z1 + z2), df)
+    @test isapprox.(fitmodel.β, β_true; atol=0.1) |> all
+    @test isapprox.(fitmodel.α, α_true; atol=0.1) |> all
+
+    # --- PH Model ---
+    X1 = randn(n, 2)
+    β_true = [0.8, -0.4]
+    model_ph = GeneralHazardModel(PHMethod(), zeros(n), trues(n), dist, X1, zeros(n,0), zeros(0), β_true)
+    T_ph = simGH(n, model_ph)
+    df_ph = DataFrame(time=T_ph, status=Δ, x1=X1[:,1], x2=X1[:,2])
+    fit_ph = fit(ProportionalHazard, @formula(Surv(time, status) ~ x1 + x2), df_ph)
+    @test isapprox.(fit_ph.β, β_true; atol=0.1) |> all
+
+    # --- AFT Model ---
+    X1 = randn(n, 2)
+    β_true = [0.6, 0.2]
+    model_aft = GeneralHazardModel(AFTMethod(), zeros(n), trues(n), dist, X1, zeros(n,0), zeros(0), β_true)
+    T_aft = simGH(n, model_aft)
+    df_aft = DataFrame(time=T_aft, status=Δ, x1=X1[:,1], x2=X1[:,2])
+    fit_aft = fit(AcceleratedFaillureTime, @formula(Surv(time, status) ~ x1 + x2), df_aft)
+    @test isapprox.(fit_aft.β, β_true; atol=0.1) |> all
+
+    # --- AH Model ---
+    X2 = randn(n, 2)
+    α_true = [0.4, -0.3]
+    model_ah = GeneralHazardModel(AHMethod(), zeros(n), trues(n), dist, zeros(n,0), X2, α_true, zeros(0))
+    T_ah = simGH(n, model_ah)
+    df_ah = DataFrame(time=T_ah, status=Δ, z1=X2[:,1], z2=X2[:,2])
+    fit_ah = fit(AcceleratedHazard, @formula(Surv(time, status) ~ z1 + z2), df_ah)
+    @test isapprox.(fit_ah.α, α_true; atol=0.1) |> all
 end
