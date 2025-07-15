@@ -55,7 +55,7 @@ Taking the negative logarithm of the Breslow partial likelihood, we get:
 
 ```math
 
-\text{Loss}(\mathbf{\beta}) = - \sum_{j=1}^{k} \left( \sum \mathbf{X}_i^T\mathbf{\beta} - \log \left( \sum_{l \in R_j} \exp(\mathbf{X}_l^T\mathbf{\beta}) \right) \right)
+\text{Loss}(\mathbf{\beta}) = - \sum_{i=1}^{n} \Delta_i \left( \mathbf{X}_i^T\mathbf{\beta} - \log \left( \sum_{j \in R_j} \exp(\mathbf{X}_j^T\mathbf{\beta}) \right) \right)
 
 ```
 This function is convex, which facilitates optimization.
@@ -88,7 +88,7 @@ For optimization algorithms like Newton-Raphson and for calculating standard err
 The entry for the $k$-th row and $l$-th column of the Hessian matrix is:
 
 ```math
-\frac{\partial^2}{\partial \beta_k \partial \beta_l} \text{Loss}(\mathbf{\beta}) = \sum_{i=1}^{n} \left[ \frac{\sum_{j \in R_i} \exp(\mathbf{\beta}^T\mathbf{X}_j) X_{jk}X_{jl}}{\sum_{j \in R_i} \exp(\mathbf{\beta}^T\mathbf{X}_j)} - \frac{\left( \sum_{j \in R_i} \exp(\mathbf{\beta}^T\mathbf{X}_j) X_{jk} \right) \left( \sum_{j \in R_i} \exp(\mathbf{\beta}^T\mathbf{X}_j) X_{jl} \right)}{\left( \sum_{j \in R_i} \exp(\mathbf{\beta}^T\mathbf{X}_j) \right)^2} \right]
+\frac{\partial^2}{\partial \beta_k \partial \beta_l} \text{Loss}(\mathbf{\beta}) = \sum_{i=1}^{n} \Delta_i \left[ \frac{\sum_{j \in R_i} \exp(\mathbf{\beta}^T\mathbf{X}_j) X_{jk}X_{jl}}{\sum_{j \in R_i} \exp(\mathbf{\beta}^T\mathbf{X}_j)} - \frac{\left( \sum_{j \in R_i} \exp(\mathbf{\beta}^T\mathbf{X}_j) X_{jk} \right) \left( \sum_{j \in R_i} \exp(\mathbf{\beta}^T\mathbf{X}_j) X_{jl} \right)}{\left( \sum_{j \in R_i} \exp(\mathbf{\beta}^T\mathbf{X}_j) \right)^2} \right]
 ```
 
 ### 6. Information Matrix and Variance-Covariance Matrix
@@ -119,7 +119,7 @@ The standard error for a specific coefficient ($\hat{\beta}_k$) is the square ro
 SE(\hat{\beta}_k) = \sqrt{\text{Var}(\hat{\beta}_k)}
 ```
 
-### 8.  Wald Test for Significance
+### 8. Wald Test for Significance
 
 To determine if a variable has a statistically significant effect, a Wald test is performed. A z-score is calculated:
 
@@ -131,7 +131,7 @@ This $z$-score is then compared to a normal distribution to obtain a $p$-value. 
 
 The p-value for each coefficient is calculated by comparing its z-score to a standard normal distribution. This p-value indicates the probability of observing a z-score as extreme as, or more extreme than, the one calculated, assuming the null hypothesis (that the coefficient is zero) is true.
 
-### 9. 10. Confidence Interval
+### 9. Confidence Interval
 The standard error allows for the construction of a confidence interval (CI) around the coefficient, which provides a range of plausible values for the true coefficient.
 
 The general formula for a $(1 - \alpha) \times 100\%$ confidence interval is:
