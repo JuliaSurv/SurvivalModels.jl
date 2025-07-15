@@ -22,10 +22,19 @@ makedocs(;
     ),
     pages=[
         "Home" => "index.md",
-        "kaplanmeier.md",
-        "logranktest.md",
-        "cox.md",
-        "references.md",
+        "Nonparametric" => [
+            "Kaplan-Meier" => "nonparametric/kaplanmeier.md",
+            "Log-Rank Test" => "nonparametric/logranktest.md",
+        ],
+        "Semiparametric" => [
+            "Cox" => "semiparametric/cox.md",
+        ],
+        "Parametric" => [
+            # Add parametric models here as you implement them
+            # "General Hazard" => "parametric/generalhazard.md",
+        ],
+        "Case Study" => "case_study.md",
+        "References" => "references.md",
     ],
 )
 
