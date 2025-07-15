@@ -23,18 +23,18 @@ struct KaplanMeier{T}
     function KaplanMeier(T::AbstractVector, Δ::AbstractVector)
         @assert length(T) == length(Δ)
         o = sortperm(T)
-        To = T[o]
+        To = T[o].*1.0 # Convert to Float64 for consistency
         Δo = Bool.(Δ[o])
-        t = unique(To).*1.0 # Convert to Float64 for consistency
+        t = unique(To)
         N, n = length(To), length(t)
-        ∂N, Y, ∂Λ, ∂σ = zeros(Int, n), zeros(Int, n), zero(t), zero(t)
+        ∂N, Y, ∂Λ, ∂σ = zeros(Int64, n), zeros(Int64, n), zero(t), zero(t)
         j = 1
         at_risk = N
         for i in 1:n
             ti = t[i]
             # Compute size and n_events of the risk set:
             rs_size, rs_events = 0, 0
-            while To[j] == ti && j <= N 
+            while j <= N && To[j] == ti
                 rs_size += 1
                 rs_events += Δo[j]
                 j += 1
@@ -47,7 +47,7 @@ struct KaplanMeier{T}
             # Decrease the number of people at risk by the risk set size: 
             at_risk -= rs_size
         end
-        new{eltype(T)}(t, ∂N, Y, ∂Λ, ∂σ)
+        new{eltype(To)}(t, ∂N, Y, ∂Λ, ∂σ)
     end
 end
 

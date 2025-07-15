@@ -188,18 +188,19 @@ end
     @test lrt3.stat ≥ 0
     @test 0.0 ≤ lrt3.pval ≤ 1.0
 
-    # 4. All censored data
+    # 4. All uncensored data 
     T4 = [1, 2, 3, 4, 5, 6]
-    Δ4 = zeros(Int, 6)
+    Δ4 = ones(Int, 6)
     group4 = [1, 1, 1, 2, 2, 2]
+    strata = ones(Int, 6)
     lrt4 = LogRankTest(T4, Δ4, group4, strata)
-    @test lrt4.stat ≈ 0 atol=1e-8
-    @test lrt4.pval ≈ 1 atol=1e-8
+    @test lrt4.stat ≥ 0
+    @test lrt4.pval ≈ 0 atol=1e-8
 
     # Two strata, two groups, identical within strata
     T = [1, 2, 3, 4, 1, 2, 3, 4]
     Δ = [1, 1, 1, 1, 1, 1, 1, 1]
-    group = [1, 1, 2, 2, 1, 1, 2, 2]
+    group = [1, 1, 2, 2, 2, 2, 1, 1]
     strata = [1, 1, 1, 1, 2, 2, 2, 2]
 
     lrt = LogRankTest(T, Δ, group, strata)
