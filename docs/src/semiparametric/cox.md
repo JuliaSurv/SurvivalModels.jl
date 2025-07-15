@@ -4,91 +4,141 @@ CurrentModule = SurvivalModels
 
 # Cox models
 
-one ref: [cox1972regression](@cite).
+## Introduction to Survival Analysis
 
-## Theory
+## The Cox Proportional Hazards Model: Theory
 
-The Cox Proportional Hazards Model is a semi-parametric model used to analyze time-to-event data. It models the relationship between the survival time of an individual and a set of covariates. It is defined by the **hazard function**:
+The Cox Proportional Hazards Model [cox1972regression](@cite) is a semi-parametric model used to analyze time-to-event data. It models the relationship between the survival time of an individual and a set of explanatory variables (covariates). 
+
+### 1. The Hazard Function
+The model is defined by the **hazard function**, which describes the risk of an event occuring at time $t$, given that the event has not occured before the time $t$. The hazard function is given by:
 
 ```math
 h(t | \mathbf{X}) = h_0(t) \exp(\mathbf{X}^T\mathbf{\beta})
 ```
+
 where:
-$h_0(t)$ is the baseline hazard function, 
-$\mathbf{X}$ is the covariate vector, 
-$\mathbf{\beta}$ is the vector of regression coefficients.
 
-The partial-likelihood function for the Cox model is given by:
+- ``h_0(t)`` is the **baseline hazard function**. This is an unspecified, non-negative function of time that represents the hazard for an individual with all covariates equal to zero. It captures the underlying risk profile common to all individuals.
+- `` \mathbf{X}`` is the **covariate vector** for an individual. These are the independent variables (e.g., age, treatment, gender) that influence the event time.
+- ``\mathbf{\beta}`` is the **vector of regression coefficients**.
+
+The term $exp(\mathbf{X}^T\mathbf{\beta})$ is often called the hazard ratio.
+
+### 2. The Partial-Likelihood Function
+Since the baseline hazard function $h_0(t)$ is unspecified, a standard likelihood function cannot be formed directly. Instead, Cox introduced the concept of a partial likelihood. This approach focuses on the order of events rather than their exact timings, factoring out the unknown $h_0(t)$.
+
+For each distinct observed event time $t_(j)$, we consider the set of individuals who are "at risk" of experiencing the event just before $t_(j)$. This is called the risk set, $R(t_(j))$. The partial likelihood is constructed by considering the probability that the specific individual(s) who experienced the event at $t_(j)$ were the ones to fail, given that some event occurred among the individuals in $R(t_(j))$.
+
+The **partial-likelihood function** for the Cox model, accounting for tied event times using Breslow's approximation, is given by:
 
 ```math
-L(\mathbf{\beta}) = \prod_{j=1}^{k} \frac{\prod_{ \Delta_i=1} \exp(\mathbf{X}_i^T\mathbf{\beta})}{\left( \sum_{l \in R_j} \exp(\mathbf{X}_l^T\mathbf{\beta}) \right)}
+L(\mathbf{\beta}) = \prod_{j=1}^{k} \left( \frac{\exp(\mathbf{X}_i^T\mathbf{\beta})}{ \sum_{l \in R_j} \exp(\mathbf{X}_l^T\mathbf{\beta})}\right)^{\Delta_i}
 ```
-Our goal is to maximize the log-partial-likelihood or, equivalently, to minimize its negative, which we define as our loss function:
+
+where:
+
+- ``k`` is the number of distinct event times.
+- ``t_{(j)}`` denotes the j-th distinct ordered event time.
+- ``\Delta_j`` is the set of individuals who experience the event at time $t_{(j)}$.
+- ``R_j`` is the risk set at time ``t_{(j)}``, comprising all individuals who are still at risk (have not yet experienced the event or been censored) just- before ``t_{(j)}``.
+- ``\mathbf{X}_i`` is the covariate vector for individual ``i``.
+
+### 3. The Loss Function (Negative Log-Partial-Likelihood)
+
+Our goal is to estimate the regression coefficients $mathbf{\beta}$ by maximizing the partial-likelihood function $L(mathbf{\beta})$. Equivalently, it is often more convenient to minimize its negative logarithm, which we define as our loss function:
+
+```math
+\text{Loss}(\mathbf{\beta}) = - \log L(\mathbf{\beta}) 
+```
+Taking the negative logarithm of the Breslow partial likelihood, we get:
 
 ```math
 
-\text{Loss}(\mathbf{\beta}) = - \log L(\mathbf{\beta}) = - \sum_{j=1}^{k} \left( \sum \mathbf{X}_i^T\mathbf{\beta} - \log \left( \sum_{l \in R_j} \exp(\mathbf{X}_l^T\mathbf{\beta}) \right) \right)
+\text{Loss}(\mathbf{\beta}) = - \sum_{i=1}^{n} \Delta_i \left( \mathbf{X}_i^T\mathbf{\beta} - \log \left( \sum_{j \in R_j} \exp(\mathbf{X}_j^T\mathbf{\beta}) \right) \right)
 
 ```
+This function is convex, which facilitates optimization.
 
 The loss function is coded as follows: 
 
 ```julia
 function loss(beta, M::Cox)
+    # M.X: Design matrix (n x m), where n is number of observations, m is number of covariates.
+    # M.T: Vector of observed times (n) for each individual.
+    # M.Δ: Vector of event indicators (n), 1 if event, 0 if censored.
     η = M.X*beta
     return dot(M.Δ, log.((M.T .<= M.T') * exp.(η)) .- η)
 end
 ```
 
-We differentiate once and obtain the gradient:
+### 4. Gradient of the Loss Function
+
+To find the optimal $mathbf{\beta}$, we need to minimize the loss function. 
+
+The gradient of the loss function with respect to a specific coefficient $\beta_k$ is:
 
 ```math
-
 \frac{\partial}{\partial \beta_k} \text{Loss}(\mathbf{\beta}) = - \sum_{i=1}^{n} \left( X_{ik} - \frac{\sum_{j \in R_i} \exp(\mathbf{\beta}^T\mathbf{X}_j) X_{jk}}{\sum_{j \in R_i} \exp(\mathbf{\beta}^T\mathbf{X}_j)} \right)
-
 ```
-And the Hesian matrix: 
+### 5. Hessian Matrix of the Loss Function
+
+For optimization algorithms like Newton-Raphson and for calculating standard errors, the Hessian matrix (matrix of second partial derivatives) of the loss function is required.
+
+The entry for the $k$-th row and $l$-th column of the Hessian matrix is:
 
 ```math
-
-\frac{\partial^2}{\partial \beta_k \partial \beta_l} \text{Loss}(\mathbf{\beta}) = \sum_{i=1}^{n} \left[ \frac{\sum_{j \in R_i} \exp(\mathbf{\beta}^T\mathbf{X}_j) X_{jk}X_{jl}}{\sum_{j \in R_i} \exp(\mathbf{\beta}^T\mathbf{X}_j)} - \frac{\left( \sum_{j \in R_i} \exp(\mathbf{\beta}^T\mathbf{X}_j) X_{jk} \right) \left( \sum_{j \in R_i} \exp(\mathbf{\beta}^T\mathbf{X}_j) X_{jl} \right)}{\left( \sum_{j \in R_i} \exp(\mathbf{\beta}^T\mathbf{X}_j) \right)^2} \right]
-
+\frac{\partial^2}{\partial \beta_k \partial \beta_l} \text{Loss}(\mathbf{\beta}) = \sum_{i=1}^{n} \Delta_i \left[ \frac{\sum_{j \in R_i} \exp(\mathbf{\beta}^T\mathbf{X}_j) X_{jk}X_{jl}}{\sum_{j \in R_i} \exp(\mathbf{\beta}^T\mathbf{X}_j)} - \frac{\left( \sum_{j \in R_i} \exp(\mathbf{\beta}^T\mathbf{X}_j) X_{jk} \right) \left( \sum_{j \in R_i} \exp(\mathbf{\beta}^T\mathbf{X}_j) X_{jl} \right)}{\left( \sum_{j \in R_i} \exp(\mathbf{\beta}^T\mathbf{X}_j) \right)^2} \right]
 ```
-The information matrix is defined as the negative of the Hessian matrix of the log-likelihood function, evaluated at the point of the estimated coefficients. 
+
+### 6. Information Matrix and Variance-Covariance Matrix
+
+The observed Information Matrix, $I(\hat{\boldsymbol{\beta}})$, is defined as the negative of the Hessian matrix of the log-likelihood function, evaluated at the maximum likelihood estimates $\hat{\boldsymbol{\beta}}$.
 
 ```math
-
 I(\hat{\boldsymbol{\beta}}) = -H(\hat{\boldsymbol{\beta}})
-
 ```
 
 But, in the earlier formula, $\mathbf{H}_{\text{Loss}}$​ was for Loss(β), which is -log L(β) $\mathbf{H}_{\text{Loss}} = - \mathbf{H}_{\text{log-likelihood}}$. Therefore, the observed Information Matrix is equal to $\mathbf{H}_{\text{Loss}}$ itself.
 
 The variance (and covariance) of our estimators $\hat{\boldsymbol{\beta}}$ are obtained by inverting the observed information matrix.
 
-$$\text{Var}(\hat{\boldsymbol{\beta}}) = I(\hat{\boldsymbol{\beta}})^{-1}$$
+```math
+\text{Var}(\hat{\boldsymbol{\beta}}) = I(\hat{\boldsymbol{\beta}})^{-1}
+```
 
 This final matrix contains:
 - On its diagonal: the variances of each coefficient ($\text{Var}(\hat{\beta}_1)$, $\text{Var}(\hat{\beta}_2)$, ...).
 - Off-diagonal: the covariances between pairs of coefficients.
 
+### 7. Standard Error
+
 The standard error for a specific coefficient ($\hat{\beta}_k$) is the square root of its variance.
 
-$$SE(\hat{\beta}_k) = \sqrt{\text{Var}(\hat{\beta}_k)}$$
+```math
+SE(\hat{\beta}_k) = \sqrt{\text{Var}(\hat{\beta}_k)}
+```
+
+### 8. Wald Test for Significance
 
 To determine if a variable has a statistically significant effect, a Wald test is performed. A z-score is calculated:
-$$z = \frac{\text{Coefficient}}{\text{Erreur Type}} = \frac{\hat{\beta}}{SE(\hat{\beta})}$$
+
+```math
+z = \frac{\text{Coefficient}}{\text{Erreur Type}} = \frac{\hat{\beta}}{SE(\hat{\beta})}
+```
 
 This $z$-score is then compared to a normal distribution to obtain a $p$-value. A low $p$-value (typically < 0.05) suggests that the coefficient is significantly different from zero.
 
 The p-value for each coefficient is calculated by comparing its z-score to a standard normal distribution. This p-value indicates the probability of observing a z-score as extreme as, or more extreme than, the one calculated, assuming the null hypothesis (that the coefficient is zero) is true.
 
-
+### 9. Confidence Interval
 The standard error allows for the construction of a confidence interval (CI) around the coefficient, which provides a range of plausible values for the true coefficient.
 
 The general formula for a $(1 - \alpha) \times 100\%$ confidence interval is:
 
-$$\text{IC pour } \hat{\beta} = \hat{\beta} \pm z_{\alpha/2} \times SE(\hat{\beta})$$
+```math
+\text{IC pour } \hat{\beta} = \hat{\beta} \pm z_{\alpha/2} \times SE(\hat{\beta})
+```
 
 
 
@@ -230,22 +280,44 @@ const design = Dict(
 "VJ"=> (CoxVJ, :black)
 );
 
-# Function to simulate data for different rows and column numbers (n max = 2000 et m max = 20):
-function simulate_survival_data(n, m; censor_rate = 0.2, β=randn(m))
-    Random.seed!(42)
-    X = hcat(
-        [randn(n)       for _ in 1:cld(m,3)]..., # about 1/3
-        [rand(n)        for _ in 1:cld(m,3)]..., # about 1/3
-        [exp.(randn(n)) for _ in 1:(m-2cld(m,3))]... # the rest. 
-    )
-    η = X * β
-    λ₀ = 1 
-    U = rand(n)
-    O = -log.(U) ./ (λ₀ .* exp.(η))
-    lc = quantile(O, 1 - censor_rate)
-    C = rand(Exponential(lc), n)
+
+function simulate_survival_data(n, m; censor_rate = 0.2, β=ones(m) , 
+                                theta0 = [0.1, 2.0, 5.0]) 
+    
+    # X = hcat(
+    #     [randn(n)       for _ in 1:cld(m,3)]..., # about 1/3
+    #     [rand(n)        for _ in 1:cld(m,3)]..., # about 1/3
+    #     [exp.(randn(n)) for _ in 1:(m-2cld(m,3))]... # the rest. 
+    # )
+
+    # A first sampling strategy: 
+    #     η = X * β
+    #     λ₀ = 1 
+    #     U = rand(n)
+    #     O = -log.(U) ./ (λ₀ .* exp.(η))
+    #     lc = quantile(O, 1 - censor_rate)
+    #     C = rand(Exponential(lc), n)
+
+    # Another one: 
+          X = randn(n,m)
+          O = rand.(Exponential.(exp.(.- X * β)))
+          C = rand(Exponential(1/3),n)
+
+    # But we chose power generalized Weibull for the \lamda_0:
+    # function qPGW(p, sigma, nu, gamma)
+    #     val = sigma * ((1 - log(1 - p))^gamma - 1)^(1 / nu)
+    #     return val
+    # end
+    # distu = Uniform(0, 1)
+    # u = rand(distu, n) 
+    # exp_xbeta = exp.(X * β)
+    # p0 = 1.0 .- exp.(log.(u) ./ exp_xbeta)
+    # O = [qPGW(prob, theta0[1], theta0[2], theta0[3]) for prob in p0]
+    # lc = quantile(O, 1 - censor_rate) 
+    # C = rand(Exponential(lc), n)
+
     T = min.(O, C)
-    Δ = Bool.(T .<= C)
+    Δ = Bool.(O .<= C) 
     return (T, Δ, X)
 end
 
@@ -309,9 +381,8 @@ end
 ```
 
 ```@example 1
-x=1
-# df = run_models()
-# timing_graph(df)
+df = run_models()
+timing_graph(df)
 ```
 
 comments on the graph. 
@@ -319,8 +390,7 @@ comments on the graph.
 A zoom on our implementation vs Survival.jl vs R::survival: 
 
 ```@example 1
-x=1
-# timing_graph(filter(r -> r.name ∈ ("V3", "VJ", "VR"), df))
+timing_graph(filter(r -> r.name ∈ ("V3", "VJ", "VR"), df))
 ```
 
 So we are about x10 faster than the reference implmentation of R (and than the previous Julia attemps) on this example. 
@@ -366,7 +436,7 @@ function beta_correctness_graphs(df; ref="VJ")
     return p
 end
 
-# beta_correctness_graphs(df)
+beta_correctness_graphs(df)
 ```
 
 ```@example 1
@@ -398,10 +468,8 @@ function beta_wrt_truth(df)
     return p
 end   
 
-# beta_wrt_truth(df)
+beta_wrt_truth(df)
 ```
-
-
 
 ```@bibliography
 Pages = ["cox.md"]
