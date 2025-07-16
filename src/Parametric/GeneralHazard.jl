@@ -5,13 +5,13 @@ struct AHMethod  <: AbstractGHMethod end
 struct GHMethod  <: AbstractGHMethod end
 
 c1(::GHMethod,  X1, X2, β, α) = exp.(X2 * α)
-c1(::PHMethod,  X1, X2, β, α) = 1.0
+c1(::PHMethod,  X1, X2, β, α) = ones(size(X1, 1))
 c1(::AFTMethod, X1, X2, β, α) = exp.(X1 * β)
 c1(::AHMethod,  X1, X2, β, α) = exp.(X2 * α)
 
 c2(::GHMethod,  X1, X2, β, α) = exp.(X1 * β - X2 * α)
 c2(::PHMethod,  X1, X2, β, α) = exp.(X1 * β)
-c2(::AFTMethod, X1, X2, β, α) = 1.0
+c2(::AFTMethod, X1, X2, β, α) = ones(size(X1, 1))
 c2(::AHMethod,  X1, X2, β, α) = exp.(-X2 * α)
 
 """
@@ -71,15 +71,17 @@ struct GeneralHazardModel{Method, B}
     function GeneralHazardModel(m::Method, T, Δ, baseline, X1, X2) where {Method<:AbstractGHMethod}
         npd, p, q = length(Distributions.params(baseline)), size(X1,2), size(X2,2)
         init = zeros(npd+p+q)
+        base_T = typeof(baseline).name.wrapper
+        Δ = Bool.(Δ)
         function mloglik(par::Vector)
-            d, α, β = baseline(exp.(par[1:npd])...), par[npd .+ (1:q)], par[npd + q .+ (1:p)]
+            d, α, β = base_T(exp.(par[1:npd])...), par[npd .+ (1:q)], par[npd + q .+ (1:p)]
             B = (Method == AHMethod) ? 0.0 : (X1[Δ,:] * β)
             C = c1(m, X1, X2, β, α)
             D = c2(m, X1, X2, β, α)
-            return  -sum(loghaz.(d, T[Δ] .* C[Δ]) .+ B) + sum(cumhaz.(d, T .* C) .* D)
+            return  -sum(loghazard.(d, T[Δ] .* C[Δ]) .+ B) + sum(cumhazard.(d, T .* C) .* D)
         end
         par = optimize(mloglik, init, method=LBFGS()).minimizer
-        d, α, β = baseline(exp.(par[1:npd])...), par[npd .+ (1:q)], par[npd + q .+ (1:p)]
+        d, α, β = base_T(exp.(par[1:npd])...), par[npd .+ (1:q)], par[npd + q .+ (1:p)]
         return new{Method, typeof(d)}(T, Δ, d, X1, X2, α, β)
     end
 end
