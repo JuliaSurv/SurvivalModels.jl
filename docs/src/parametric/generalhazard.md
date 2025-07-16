@@ -1,13 +1,13 @@
-# Some hazard functions in Julia
+# General Hazard Models
 
-# Hazard and cumulative hazard functions
+## Hazard and cumulative hazard functions
 
 The hazard and the cumulative hazard functions play a crucial role in survival analysis. These functions define the likelihood function in the presence of censored observations. Thus, they are important in many context. For more information about these functions, see [Short course on Parametric Survival Analysis
 ](https://github.com/FJRubio67/ShortCourseParamSurvival).
 
 In Julia, hazard and cumulative hazard functions can be fetched through the `hazard(dist, t)` and `cumhaz(dist, t)` functions from `SurvivalDistributions.jl`, and can be aplied to any distributions complient with `Distributions.jl`'s API. Note that `SurvivalDistributions.jl` also contains a few more distributions relevant to survival analysis. See also the (deprecated) [HazReg.jl Julia Package](https://github.com/FJRubio67/HazReg.jl). 
 
-# Helper function for hazard and cumulative hazard plots
+Here are a few plots of hazard curves for some known distributions: 
 
 ```@example 1
 using Distributions, Plots, StatsBase, SurvivalDistributions
@@ -28,49 +28,31 @@ function hazard_cumhazard_plot(dist, distname; tlims=(0,10))
 end
 ```
 
-# Examples
-
-## LogNormal
+### LogNormal
 
 ```@example 1
 hazard_cumhazard_plot(LogNormal(0.5, 1), "LogNormal")
 ```
 
-## LogLogistic
+### LogLogistic
 
 ```@example 1
 hazard_cumhazard_plot(LogLogistic(1, 0.5), "LogLogistic")
 ```
 
-## Weibull
+### Weibull
 
 ```@example 1
 hazard_cumhazard_plot(Weibull(3, 0.5), "Weibull")
 ```
 
-## Gamma
+### Gamma
 
 ```@example 1
 hazard_cumhazard_plot(Gamma(3, 0.5), "Gamma")
 ```
 
-# Julia simGH: simulating times to event from a general hazard structure
-
-# The `simGH` command.
-The simGH command from the `HazReg.jl` Julia package allows one to simulate times to event from the following models:
-
-- General Hazard (GH) model [chen:2001](@cite) [rubio:2019](@cite).
-- Accelerated Failure Time (AFT) model [kalbfleisch:2011](@cite).
-- Proportional Hazards (PH) model [cox:1972](@cite).
-- Accelerated Hazards (AH) model [chen:2000](@cite).
-
-A description of these hazard models is presented below as well as the available baseline hazards.
-
-```@docs
-simGH
-```
-
-## General Hazard model
+## General Hazard Models
 The GH model is formulated in terms of the hazard structure
 
 ```math
@@ -87,7 +69,7 @@ SurvivalModels.GeneralHazardModel
 GeneralHazard
 ```
 
-## Accelerated Failure Time (AFT) model
+### Accelerated Failure Time (AFT) model
 The AFT model is formulated in terms of the hazard structure
 
 ```math
@@ -100,7 +82,7 @@ where ``{\bf x}\in{\mathbb R}^p`` are the available covariates; ``\beta \in {\ma
 AcceleratedFaillureTime
 ```
 
-## Proportional Hazards (PH) model
+### Proportional Hazards (PH) model
 The PH model is formulated in terms of the hazard structure
 
 ```math
@@ -113,7 +95,7 @@ where ``{\bf x}\in{\mathbb R}^p`` are the available covariates; ``\beta \in {\ma
 ProportionalHazard
 ```
 
-## Accelerated Hazards (AH) model
+### Accelerated Hazards (AH) model
 The AH model is formulated in terms of the hazard structure
 
 ```math
@@ -126,7 +108,7 @@ where ``\tilde{\bf x}\in{\mathbb R}^q`` are the available covariates; ``\alpha \
 AcceleratedHazard
 ```
 
-# Available baseline hazards
+### Available baseline hazards
 The current version of the `simGH` command implements the following parametric baseline hazards for the models discussed in the previous section.
 
 - [Power Generalised Weibull](http://rpubs.com/FJRubio/PGW) (PGW) distribution.
@@ -144,10 +126,26 @@ The current version of the `simGH` command implements the following parametric b
 - [Weibull](https://en.wikipedia.org/wiki/Weibull_distribution) (Weibull) distribution. (only for AFT, PH, and AH models)
 
 
-# Illustrative example: Julia code
+### Simulating times to event from a general hazard structure with `simGH`
+
+The simGH command from the `HazReg.jl` Julia package allows one to simulate times to event from the following models:
+
+- General Hazard (GH) model [chen:2001](@cite) [rubio:2019](@cite).
+- Accelerated Failure Time (AFT) model [kalbfleisch:2011](@cite).
+- Proportional Hazards (PH) model [cox:1972](@cite).
+- Accelerated Hazards (AH) model [chen:2000](@cite).
+
+A description of these hazard models is presented below as well as the available baseline hazards.
+
+```@docs
+simGH
+```
+
+
+## Illustrative example
 In this example, we simulate ``n=1,000`` times to event from the GH, PH, AFT, and AH models with PGW baseline hazards, using the `simGH()` function. This functionality was ported from [HazReg.jl](https://github.com/FJRubio67/HazReg.jl) 
 
-## PGW-GH model
+### PGW-GH model
 
 ```@example 1
 using SurvivalModels, Distributions, DataFrames, Random, SurvivalDistributions
@@ -193,7 +191,7 @@ result = DataFrame(
 
 Of course, increasing hte numebr of observations would increase the quality of the fitted values. You can also use "subset" models (PH, AH, AFT) through the convenient constructors as follows: 
 
-## PGW-PH model
+### PGW-PH model
 
 ```@example 1
 model = ProportionalHazard(zeros(n), trues(n), 
@@ -222,7 +220,7 @@ result = DataFrame(
 ```
 
 
-## PGW-AFT model
+### PGW-AFT model
 
 ```@example 1
 
@@ -254,7 +252,7 @@ result = DataFrame(
 
 
 
-## PGW-AH model
+### PGW-AH model
 
 ```@example 1
 # Construct the model directly (no optimization)

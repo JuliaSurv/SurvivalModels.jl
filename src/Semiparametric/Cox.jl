@@ -1,25 +1,28 @@
 """
     StatsBase.fit(Cox, @formula(Surv(T,Δ)~predictors), dataset)
 
-    arguments: 
-    - T: The Cox model type to fit (CoxV3)
-    - formula: A StatsModels.FormulaTerm specifying the survival model
-    - df: A DataFrame containing the variables specified in the formula
+Arguments: 
+- T: The Cox model type to fit (CoxV3)
+- formula: A StatsModels.FormulaTerm specifying the survival model
+- df: A DataFrame containing the variables specified in the formula
 
-    returns: 
-    - predictor: A Vector{String} containing the names of the predictor variables included in the model
-    - beta: A Vector{Float64} containing the estimated regression coefficients (β​) for each predictor
-    - se: A Vector{Float64} containing the standard errors of the estimated regression coefficients
-    - loglikelihood: A Vector{Float64} containing the log-likelihood of the fitted model. This value is repeated for each predictor row 
+Returns: 
+- predictor: A Vector{String} containing the names of the predictor variables included in the model
+- beta: A Vector{Float64} containing the estimated regression coefficients (β​) for each predictor
+- se: A Vector{Float64} containing the standard errors of the estimated regression coefficients
+- loglikelihood: A Vector{Float64} containing the log-likelihood of the fitted model. This value is repeated for each predictor row 
 
-    - coef: A vector of the estimated coefficients
-    - formula: The applied formula
+- coef: A vector of the estimated coefficients
+- formula: The applied formula
 
 Example:
+
+```julia
 ovarian = dataset("survival", "ovarian")
 ovarian.FUTime = Float64.(ovarian.FUTime) (Time column needs to be Float64 type)
 ovarian.FUStat = Bool.(ovarian.FUStat) (Status column needs to be Bool type)
 model = fit(Cox, @formula(Surv(FUTime, FUStat) ~ Age + ECOG_PS), ovarian)
+```
 
 
 Types: 

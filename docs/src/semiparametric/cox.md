@@ -4,8 +4,6 @@ CurrentModule = SurvivalModels
 
 # Cox models
 
-## Introduction to Survival Analysis
-
 ## The Cox Proportional Hazards Model: Theory
 
 The Cox Proportional Hazards Model [cox1972regression](@cite) is a semi-parametric model used to analyze time-to-event data. It models the relationship between the survival time of an individual and a set of explanatory variables (covariates). 
@@ -74,7 +72,7 @@ end
 
 ### 4. Gradient of the Loss Function
 
-To find the optimal ``mathbf{\beta}``, we need to minimize the loss function. 
+To find the optimal ``\mathbf{\beta}``, we need to minimize the loss function. 
 
 The gradient of the loss function with respect to a specific coefficient ``\beta_k`` is:
 
@@ -175,7 +173,7 @@ To implement the Cox proportional hazards model, different versions were coded, 
 The final goal is to compare these versions and choose the most efficient one: the fastest and the closest to the true values
 of the coefficients. 
 
-### V0
+### V0: previous attempt
 
 ```@docs
 CoxV0

@@ -5,18 +5,18 @@
 The fifth implementation of the Cox proportional hazards model uses a pre-calculated Hessian approximation for faster iterations, like CoxV4. Its approach is similar to CoxV3.
 
 Fields:
-    - Xᵗ::Matrix{Float64}: The design matrix of covariates, transposed (m rows, n columns)
-    - sX::Vector{Float64}: Sum of X' multiplied by Δ
-    - T::Vector{Float64}: The observed times sorted in descending order
-    - Δ::Vector{Bool}: The event indicator vector (true for event, false for censoring)
-    - loss::Vector{Float64}: Stores the current negative partial log-likelihood value
-    - G::Vector{Float64}: Stores the gradient vector.
-    - S₁::Vector{Float64}:  Sum of rⱼxₖⱼ
-    - μ::Vector{Float64}: Currently unused in `update!` function
-    - η::Vector{Float64}: ηi = Xiβ
-    - r::Vector{Float64}: ri = exp(ηi)
-    - R::Vector{UnitRange{Int64}}:
-    - B::Vector{Float64}: Stores the majoration elements of the Hessian matrix
+- Xᵗ::Matrix{Float64}: The design matrix of covariates, transposed (m rows, n columns)
+- sX::Vector{Float64}: Sum of X' multiplied by Δ
+- T::Vector{Float64}: The observed times sorted in descending order
+- Δ::Vector{Bool}: The event indicator vector (true for event, false for censoring)
+- loss::Vector{Float64}: Stores the current negative partial log-likelihood value
+- G::Vector{Float64}: Stores the gradient vector.
+- S₁::Vector{Float64}:  Sum of rⱼxₖⱼ
+- μ::Vector{Float64}: Currently unused in `update!` function
+- η::Vector{Float64}: ηi = Xiβ
+- r::Vector{Float64}: ri = exp(ηi)
+- R::Vector{UnitRange{Int64}}:
+- B::Vector{Float64}: Stores the majoration elements of the Hessian matrix
 """
 struct CoxV5 <: CoxLLH
     Xᵗ::Matrix{Float64}        # shape: (m, n)

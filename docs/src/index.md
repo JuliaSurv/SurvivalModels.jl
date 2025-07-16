@@ -26,6 +26,8 @@ This documentation shall cover all the content of the package, which is not the 
 * Parametric modelling: 
     * General Hazard models
 
+In particular, our Cox implementation is *fast*, compared to off-the-shelf Julia and R equivalents. 
+
 ## Installation
 
 The package is not yet available on Julia's general registry, and thus can be installed through the following command:
@@ -37,7 +39,7 @@ Pkg.add("https://github.com/JuliaSurv/SurvivalModels.jl.git")
 
 
 
-# Reference
+# Index
 
 ```@index
 ```
