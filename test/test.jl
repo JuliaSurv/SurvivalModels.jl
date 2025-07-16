@@ -1,6 +1,5 @@
 @testitem "Check Cox" begin
 
-
       # Required packages
       using Distributions, Random
       using StableRNGs
@@ -106,8 +105,8 @@ end
     # Example data: 5 subjects, 3 events, 2 censored
     # Times:    2, 3, 4, 5, 8
     # Status:   1, 1, 0, 1, 0
-    T = [2, 3, 4, 5, 8]
-    Δ = [1, 1, 0, 1, 0]
+    T = Float64[2, 3, 4, 5, 8]
+    Δ = Bool[1, 1, 0, 1, 0]
 
     km = KaplanMeier(T, Δ)
 
@@ -130,8 +129,8 @@ end
     # Now test with duplicate times (events and censored at same time)
     # Times:    2, 2, 3, 3, 4, 5, 8
     # Status:   1, 0, 1, 0, 0, 1, 0
-    T2 = [2, 2, 3, 3, 4, 5, 8]
-    Δ2 = [1, 0, 1, 0, 0, 1, 0]
+    T2 = Float64[2, 2, 3, 3, 4, 5, 8]
+    Δ2 = Bool[1, 0, 1, 0, 0, 1, 0]
 
     km2 = KaplanMeier(T2, Δ2)
 
@@ -163,8 +162,8 @@ end
     using Random
 
     # 1. Two groups, clear separation
-    T = [1, 2, 3, 4, 5, 6, 7, 8]
-    Δ = [1, 1, 1, 1, 1, 1, 1, 1]
+    T = Float64[1, 2, 3, 4, 5, 6, 7, 8]
+    Δ = Bool[1, 1, 1, 1, 1, 1, 1, 1]
     group = [1, 1, 1, 1, 2, 2, 2, 2]
     strata = ones(Int, 8)
     # Group 1: early events, Group 2: late events
@@ -173,24 +172,24 @@ end
     @test lrt.pval < 0.05
 
     # 2. Two groups, identical data
-    T2 = [1, 2, 3, 4, 1, 2, 3, 4]
-    Δ2 = [1, 1, 1, 1, 1, 1, 1, 1]
+    T2 = Float64[1, 2, 3, 4, 1, 2, 3, 4]
+    Δ2 = Bool[1, 1, 1, 1, 1, 1, 1, 1]
     group2 = [1, 1, 1, 1, 2, 2, 2, 2]
     lrt2 = LogRankTest(T2, Δ2, group2, strata)
     @test lrt2.stat ≈ 0 atol=1e-8
     @test lrt2.pval ≈ 1 atol=1e-8
 
     # 3. Duplicate times, mix of events and censored
-    T3 = [2, 2, 3, 3, 4, 5, 8, 8]
-    Δ3 = [1, 0, 1, 0, 0, 1, 0, 1]
+    T3 = Float64[2, 2, 3, 3, 4, 5, 8, 8]
+    Δ3 = Bool[1, 0, 1, 0, 0, 1, 0, 1]
     group3 = [1, 1, 1, 2, 2, 2, 2, 2]
     lrt3 = LogRankTest(T3, Δ3, group3, strata)
     @test lrt3.stat ≥ 0
     @test 0.0 ≤ lrt3.pval ≤ 1.0
 
     # 4. All uncensored data 
-    T4 = [1, 2, 3, 4, 5, 6]
-    Δ4 = ones(Int, 6)
+    T4 = Float64[1, 2, 3, 4, 5, 6]
+    Δ4 = trues(6)
     group4 = [1, 1, 1, 2, 2, 2]
     strata = ones(Int, 6)
     lrt4 = LogRankTest(T4, Δ4, group4, strata)
@@ -198,8 +197,8 @@ end
     @test lrt4.pval ≈ 0 atol=1e-8
 
     # Two strata, two groups, identical within strata
-    T = [1, 2, 3, 4, 1, 2, 3, 4]
-    Δ = [1, 1, 1, 1, 1, 1, 1, 1]
+    T = Float64[1, 2, 3, 4, 1, 2, 3, 4]
+    Δ = Bool[1, 1, 1, 1, 1, 1, 1, 1]
     group = [1, 1, 2, 2, 2, 2, 1, 1]
     strata = [1, 1, 1, 1, 2, 2, 2, 2]
 
@@ -208,7 +207,7 @@ end
     @test lrt.pval ≈ 1 atol=1e-8
 
     # Now, make group 2 in stratum 2 have later events
-    T2 = [1, 2, 3, 4, 1, 2, 7, 8]
+    T2 = Float64[1, 2, 3, 4, 1, 2, 7, 8]
     lrt2 = LogRankTest(T2, Δ, group, strata)
     @test lrt2.stat > 0
     @test 0 < lrt2.pval < 1
@@ -219,8 +218,8 @@ end
     using DataFrames, StatsModels
 
     # Data for KaplanMeier
-    T = [2, 3, 4, 5, 8]
-    Δ = [1, 1, 0, 1, 0]
+    T = Float64[2., 3, 4, 5, 8]
+    Δ = Bool[true, true, false, true, false]
     df = DataFrame(time=T, status=Δ)
 
     # Direct and fit interface for KaplanMeier
@@ -232,8 +231,8 @@ end
     @test all(isapprox.(km1.∂Λ, km2.∂Λ; atol=1e-12))
 
     # Data for LogRankTest
-    T = [1, 2, 3, 4, 1, 2, 3, 4]
-    Δ = [1, 1, 1, 1, 1, 1, 1, 1]
+    T = Float64[1, 2, 3, 4, 1, 2, 3, 4]
+    Δ = Bool[1, 1, 1, 1, 1, 1, 1, 1]
     group = [1, 1, 2, 2, 1, 1, 2, 2]
     strata = [1, 1, 1, 1, 2, 2, 2, 2]
     df2 = DataFrame(time=T, status=Δ, group=group, strata=strata)
@@ -289,6 +288,7 @@ end
     X2 = randn(n, 1)
     T = rand(Weibull(2, 1), n)
     Δ = trues(n)
+
     α = [0.0]
     β = [0.0]
 
