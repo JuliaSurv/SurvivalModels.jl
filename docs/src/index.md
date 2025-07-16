@@ -24,7 +24,7 @@ This documentation shall cover all the content of the package, which is not the 
 * Semi-Parametric modelling: 
     * Cox
 * Parametric modelling: 
-    * General Hazard models (still WIP: See PR #4)
+    * General Hazard models
 
 ## Installation
 
