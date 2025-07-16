@@ -24,7 +24,9 @@ This documentation shall cover all the content of the package, which is not the 
 * Semi-Parametric modelling: 
     * Cox
 * Parametric modelling: 
-    * General Hazard models (still WIP: See PR #4)
+    * General Hazard models
+
+In particular, our Cox implementation is *fast*, compared to off-the-shelf Julia and R equivalents. 
 
 ## Installation
 
@@ -37,7 +39,7 @@ Pkg.add("https://github.com/JuliaSurv/SurvivalModels.jl.git")
 
 
 
-# Reference
+# Index
 
 ```@index
 ```

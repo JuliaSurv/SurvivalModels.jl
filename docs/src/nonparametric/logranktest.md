@@ -6,8 +6,6 @@ CurrentModule = SurvivalModels
 
 The log-rank test [mantel1966evaluation](@cite) is a non-parametric test to compare the survival distributions of two or more groups. It can be stratified to account for baseline differences.
 
-## Theory
-
 Suppose we have ``G`` groups. At each event time ``t_j``:
 
 - ``d_{gj}``: number of events in group ``g`` at ``t_j``
@@ -43,9 +41,11 @@ Under the null hypothesis, ``Z`` is approximately chi-squared distributed with `
 
 ## Stratified Log-Rank Test
 
-If there are strata, the test statistic and variance are summed over strata.
+If there are stratas, the test statistic and variance are summed over strata.
 
 ## Usage
+
+You can compute a log-rank test using the following code: 
 
 ```@example 1
 using SurvivalModels
@@ -57,19 +57,20 @@ strata = [1, 1, 1, 1, 2, 2, 2, 2]
 lrt = LogRankTest(T, Δ, group, strata)
 ```
 
-## Fields
-
-- `stat`: Chi-square test statistic.
-- `df`: Degrees of freedom.
-- `pval`: P-value of the test.
-
-## Formula interface
+and/or with the formula interface: 
 
 ```@example 1
 using DataFrames
 df = DataFrame(time=T, status=Δ, group=group, strata=strata)
 lrt2 = fit(LogRankTest, @formula(Surv(time, status) ~ Strata(strata) + group), df)
 ```
+
+The produced object has the following fields: 
+
+- `stat`: Chi-square test statistic.
+- `df`: Degrees of freedom.
+- `pval`: P-value of the test.
+
 
 ## References
 

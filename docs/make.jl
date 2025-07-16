@@ -30,6 +30,7 @@ makedocs(;
             "Cox" => "semiparametric/cox.md",
         ],
         "Parametric" => [
+            "General Hazard" => "parametric/generalhazard.md",
             # Add parametric models here as you implement them
             # "General Hazard" => "parametric/generalhazard.md",
         ],
