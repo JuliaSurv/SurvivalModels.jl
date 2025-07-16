@@ -80,6 +80,9 @@ struct GeneralHazardModel{Method, B}
             D = c2(m, X1, X2, β, α)
             return  -sum(loghazard.(d, T[Δ] .* C[Δ]) .+ B) + sum(cumhazard.(d, T .* C) .* D)
         end
+        if isnan(mloglik(init))
+            error("Initial parameters lead to NaN in log-likelihood. Check your baseline distribution and initial values.")
+        end
         par = optimize(mloglik, init, method=LBFGS()).minimizer
         d, α, β = base_T(exp.(par[1:npd])...), par[npd .+ (1:q)], par[npd + q .+ (1:p)]
         return new{Method, typeof(d)}(T, Δ, d, X1, X2, α, β)
@@ -248,7 +251,9 @@ References:
 * [HazReg original code](https://github.com/FJRubio67/HazReg) 
 """
 function simGH(n, m::GeneralHazardModel{M,B}) where {M,B}
+    # This is completely wrong, and the covariates should be provided instead of reused like that, but its a placeholder for now
     args = (M(), m.X1, m.X2, m.β, m.α)
     p0 = 1 .- exp.(log.(1 .- rand(n)) ./ c2(args...))
-    return quantile.(m.baseline,p0) ./ c1(args...)
+    rez = quantile.(m.baseline,p0) ./ c1(args...)
+    return rez
 end

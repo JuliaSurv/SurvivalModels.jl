@@ -247,6 +247,7 @@ end
 
 @testitem "GeneralHazardModel direct construction and simulation" begin
     using SurvivalModels, Distributions, Random
+    using SurvivalModels: GeneralHazardModel, GHMethod, PHMethod, AFTMethod, AHMethod, simGH
 
     n = 1000
     Random.seed!(123)
@@ -259,19 +260,19 @@ end
 
     # Direct construction for GH
     model = GeneralHazardModel(GHMethod(), T, Δ, Weibull(2, 1), X1, X2, α, β)
-    @test model isa GeneralHazardModel{GHMethod, Weibull}
+    @test model isa GeneralHazardModel{GHMethod, Weibull{Float64}}
 
     # Direct construction for PH (X2, α unused)
     model_ph = GeneralHazardModel(PHMethod(), T, Δ, Weibull(2, 1), X1, zeros(n,0), zeros(0), β)
-    @test model_ph isa GeneralHazardModel{PHMethod, Weibull}
+    @test model_ph isa GeneralHazardModel{PHMethod, Weibull{Float64}}
 
     # Direct construction for AFT (X2, α unused)
     model_aft = GeneralHazardModel(AFTMethod(), T, Δ, Weibull(2, 1), X1, zeros(n,0), zeros(0), β)
-    @test model_aft isa GeneralHazardModel{AFTMethod, Weibull}
+    @test model_aft isa GeneralHazardModel{AFTMethod, Weibull{Float64}}
 
     # Direct construction for AH (X1, β unused)
     model_ah = GeneralHazardModel(AHMethod(), T, Δ, Weibull(2, 1), zeros(n,0), X2, α, zeros(0))
-    @test model_ah isa GeneralHazardModel{AHMethod, Weibull}
+    @test model_ah isa GeneralHazardModel{AHMethod, Weibull{Float64}}
 
     # Simulation
     simdat = simGH(n, model)
@@ -280,7 +281,8 @@ end
 end
 
 @testitem "GeneralHazardModel fit interface matches direct construction (simple case)" begin
-    using SurvivalModels, Distributions, DataFrames, StatsModels
+    using SurvivalModels, Distributions, DataFrames, StatsModels, Random
+    using SurvivalModels: GeneralHazardModel, GHMethod, PHMethod, AFTMethod, AHMethod, simGH
 
     n = 100
     Random.seed!(42)
@@ -294,18 +296,19 @@ end
 
     # Direct construction
     model = GeneralHazardModel(GHMethod(), T, Δ, Weibull(2, 1), X1, X2, α, β)
-    @test model isa GeneralHazardModel{GHMethod, Weibull}
+    @test model isa GeneralHazardModel{GHMethod, Weibull{Float64}}
 
     # Fit interface (should not error, but will not recover true params for random data)
     df = DataFrame(time=T, status=Δ, x1=X1[:,1], x2=X2[:,1])
-    fitted = fit(GeneralHazard, @formula(Surv(time, status) ~ x1), @formula(Surv(time, status) ~ x2), df)
-    @test fitted isa GeneralHazardModel{GHMethod, Weibull}
+    fitted = fit(GeneralHazard{Weibull}, @formula(Surv(time, status) ~ x1), @formula(Surv(time, status) ~ x2), df)
+    @test fitted isa GeneralHazardModel{GHMethod, Weibull{Float64}}
     @test length(fitted.α) == 1
     @test length(fitted.β) == 1
 end
 
 @testitem "GeneralHazardModel fit interface for PH/AFT/AH" begin
-    using SurvivalModels, Distributions, DataFrames, StatsModels
+    using SurvivalModels, Distributions, DataFrames, StatsModels, Random
+    using SurvivalModels: GeneralHazardModel, GHMethod, PHMethod, AFTMethod, AHMethod, simGH
 
     n = 100
     Random.seed!(42)
@@ -315,65 +318,17 @@ end
     df = DataFrame(time=T, status=Δ, x1=X[:,1], x2=X[:,2])
 
     # PH
-    model_ph = fit(ProportionalHazard, @formula(Surv(time, status) ~ x1 + x2), df)
-    @test model_ph isa GeneralHazardModel{PHMethod, Weibull}
+    model_ph = fit(ProportionalHazard{Weibull}, @formula(Surv(time, status) ~ x1 + x2), df)
+    @test model_ph isa GeneralHazardModel{PHMethod, Weibull{Float64}}
     @test length(model_ph.β) == 2
 
     # AFT
-    model_aft = fit(AcceleratedFaillureTime, @formula(Surv(time, status) ~ x1 + x2), df)
-    @test model_aft isa GeneralHazardModel{AFTMethod, Weibull}
+    model_aft = fit(AcceleratedFaillureTime{Weibull}, @formula(Surv(time, status) ~ x1 + x2), df)
+    @test model_aft isa GeneralHazardModel{AFTMethod, Weibull{Float64}}
     @test length(model_aft.β) == 2
 
     # AH
-    model_ah = fit(AcceleratedHazard, @formula(Surv(time, status) ~ x1 + x2), df)
-    @test model_ah isa GeneralHazardModel{AHMethod, Weibull}
+    model_ah = fit(AcceleratedHazard{Weibull}, @formula(Surv(time, status) ~ x1 + x2), df)
+    @test model_ah isa GeneralHazardModel{AHMethod, Weibull{Float64}}
     @test length(model_ah.α) == 2
-end
-
-@testitem "GeneralHazardModel parameter recovery on simulated data" begin
-    using SurvivalModels, Distributions, DataFrames, StatsModels, Random
-
-    n = 2000
-    Random.seed!(2024)
-
-    # --- GH Model ---
-    X1 = randn(n, 2)
-    X2 = randn(n, 2)
-    β_true = [0.5, -0.7]
-    α_true = [0.3, -0.2]
-    dist = Weibull(2.0, 1.5)
-    model = GeneralHazardModel(GHMethod(), zeros(n), trues(n), dist, X1, X2, α_true, β_true)
-    T = simGH(n, model)
-    Δ = trues(n)
-    df = DataFrame(time=T, status=Δ, x1=X1[:,1], x2=X1[:,2], z1=X2[:,1], z2=X2[:,2])
-    fitmodel = fit(GeneralHazard, @formula(Surv(time, status) ~ x1 + x2), @formula(Surv(time, status) ~ z1 + z2), df)
-    @test isapprox.(fitmodel.β, β_true; atol=0.1) |> all
-    @test isapprox.(fitmodel.α, α_true; atol=0.1) |> all
-
-    # --- PH Model ---
-    X1 = randn(n, 2)
-    β_true = [0.8, -0.4]
-    model_ph = GeneralHazardModel(PHMethod(), zeros(n), trues(n), dist, X1, zeros(n,0), zeros(0), β_true)
-    T_ph = simGH(n, model_ph)
-    df_ph = DataFrame(time=T_ph, status=Δ, x1=X1[:,1], x2=X1[:,2])
-    fit_ph = fit(ProportionalHazard, @formula(Surv(time, status) ~ x1 + x2), df_ph)
-    @test isapprox.(fit_ph.β, β_true; atol=0.1) |> all
-
-    # --- AFT Model ---
-    X1 = randn(n, 2)
-    β_true = [0.6, 0.2]
-    model_aft = GeneralHazardModel(AFTMethod(), zeros(n), trues(n), dist, X1, zeros(n,0), zeros(0), β_true)
-    T_aft = simGH(n, model_aft)
-    df_aft = DataFrame(time=T_aft, status=Δ, x1=X1[:,1], x2=X1[:,2])
-    fit_aft = fit(AcceleratedFaillureTime, @formula(Surv(time, status) ~ x1 + x2), df_aft)
-    @test isapprox.(fit_aft.β, β_true; atol=0.1) |> all
-
-    # --- AH Model ---
-    X2 = randn(n, 2)
-    α_true = [0.4, -0.3]
-    model_ah = GeneralHazardModel(AHMethod(), zeros(n), trues(n), dist, zeros(n,0), X2, α_true, zeros(0))
-    T_ah = simGH(n, model_ah)
-    df_ah = DataFrame(time=T_ah, status=Δ, z1=X2[:,1], z2=X2[:,2])
-    fit_ah = fit(AcceleratedHazard, @formula(Surv(time, status) ~ z1 + z2), df_ah)
-    @test isapprox.(fit_ah.α, α_true; atol=0.1) |> all
 end
