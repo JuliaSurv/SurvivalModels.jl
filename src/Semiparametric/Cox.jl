@@ -146,7 +146,7 @@ end
 
 function StatsBase.fit(::Type{T}, formula::FormulaTerm, df::DataFrame) where T<:Cox
     CoxVersion = isconcretetype(T) ? T : CoxV3
-    formula_applied = apply_schema(formula,schema(df))
+    formula_applied = apply_schema(formula, schema(df))
 
     resp = modelcols(formula_applied.lhs, df)
     X = modelcols(formula_applied.rhs, df)
