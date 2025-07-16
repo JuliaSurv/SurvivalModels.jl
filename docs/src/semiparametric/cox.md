@@ -256,7 +256,7 @@ function SurvivalModels.getβ(M::CoxVR)
     df = M.df
     @rput df
     R"""
-    beta  <- coxph(Surv(time,status)~., data = df, ties="breslow")``coefficients
+    beta  <- coxph(Surv(time,status)~., data = df, ties="breslow")$coefficients
     """
     @rget beta
     return beta

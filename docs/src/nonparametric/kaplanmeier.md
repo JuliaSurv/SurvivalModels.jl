@@ -55,7 +55,7 @@ km = KaplanMeier(T, Δ)
 
 ```@example 1
 using DataFrames
-df = DataFrame(time=T, status=Δ)
+df = DataFrame(time=Float64.(T), status=Bool.(Δ))
 km2 = fit(KaplanMeier, @formula(Surv(time, status) ~ 1), df)
 ```
 
