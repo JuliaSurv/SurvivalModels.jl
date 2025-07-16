@@ -73,24 +73,28 @@ simGH
 ## General Hazard model
 The GH model is formulated in terms of the hazard structure
 
-$$h(t; \alpha, \beta, \theta, {\bf x}) = h_0\left(t  \exp\{\tilde{\bf x}^{\top}\alpha\}; \theta\right) \exp\{{\bf x}^{\top}\beta\}.$$
+```math
+h(t; \alpha, \beta, \theta, {\bf x}) = h_0\left(t  \exp\{\tilde{\bf x}^{\top}\alpha\}; \theta\right) \exp\{{\bf x}^{\top}\beta\}.
+```
 
-where ${\bf x}\in{\mathbb R}^p$ are the covariates that affect the hazard level; $\tilde{\bf x} \in {\mathbb R}^q$ are the covariates the affect the time level (typically $\tilde{\bf x} \subset {\bf x}$); $\alpha \in {\mathbb R}^q$ and $\beta \in {\mathbb R}^p$ are the regression coefficients; and $\theta \in \Theta" is the vector of parameters of the baseline hazard $h_0(\cdot)$.
+where ``{\bf x}\in{\mathbb R}^p`` are the covariates that affect the hazard level; ``\tilde{\bf x} \in {\mathbb R}^q`` are the covariates the affect the time level (typically ``\tilde{\bf x} \subset {\bf x}``); ``\alpha \in {\mathbb R}^q`` and ``\beta \in {\mathbb R}^p`` are the regression coefficients; and ``\theta \in \Theta`` is the vector of parameters of the baseline hazard ``h_0(\cdot)``.
 
 This hazard structure leads to an identifiable model as long as the baseline hazard is not a hazard associated to a member of the Weibull family of distributions [chen:2001](@cite). 
 
 
 ```@docs
-GeneralHazardModel
+SurvivalModels.GeneralHazardModel
 GeneralHazard
 ```
 
 ## Accelerated Failure Time (AFT) model
 The AFT model is formulated in terms of the hazard structure
 
-$$h(t; \beta, \theta, {\bf x}) = h_0\left(t  \exp\{{\bf x}^{\top}\beta\}; \theta\right) \exp\{{\bf x}^{\top}\beta\}.$$
+```math
+h(t; \beta, \theta, {\bf x}) = h_0\left(t  \exp\{{\bf x}^{\top}\beta\}; \theta\right) \exp\{{\bf x}^{\top}\beta\}.
+```
 
-where ${\bf x}\in{\mathbb R}^p" are the available covariates; $\beta \in {\mathbb R}^p$ are the regression coefficients; and $\theta \in \Theta" is the vector of parameters of the baseline hazard $h_0(\cdot)$.
+where ``{\bf x}\in{\mathbb R}^p`` are the available covariates; ``\beta \in {\mathbb R}^p`` are the regression coefficients; and ``\theta \in \Theta`` is the vector of parameters of the baseline hazard ``h_0(\cdot)``.
 
 ```@docs
 AcceleratedFaillureTime
@@ -99,9 +103,11 @@ AcceleratedFaillureTime
 ## Proportional Hazards (PH) model
 The PH model is formulated in terms of the hazard structure
 
-$$h(t; \beta, \theta, {\bf x}) = h_0\left(t ; \theta\right) \exp\{{\bf x}^{\top}\beta\}.$$
+```math
+h(t; \beta, \theta, {\bf x}) = h_0\left(t ; \theta\right) \exp\{{\bf x}^{\top}\beta\}.
+```
 
-where ${\bf x}\in{\mathbb R}^p" are the available covariates; $\beta \in {\mathbb R}^p$ are the regression coefficients; and $\theta \in \Theta" is the vector of parameters of the baseline hazard $h_0(\cdot)$.
+where ``{\bf x}\in{\mathbb R}^p`` are the available covariates; ``\beta \in {\mathbb R}^p`` are the regression coefficients; and ``\theta \in \Theta`` is the vector of parameters of the baseline hazard ``h_0(\cdot)``.
 
 ```@docs
 ProportionalHazard
@@ -110,9 +116,11 @@ ProportionalHazard
 ## Accelerated Hazards (AH) model
 The AH model is formulated in terms of the hazard structure
 
-$$h(t; \alpha, \theta, \tilde{\bf x}) = h_0\left(t \exp\{\tilde{\bf x}^{\top}\alpha\}; \theta\right) .$$
+```math
+h(t; \alpha, \theta, \tilde{\bf x}) = h_0\left(t \exp\{\tilde{\bf x}^{\top}\alpha\}; \theta\right) .
+```
 
-where $\tilde{\bf x}\in{\mathbb R}^q" are the available covariates; $\alpha \in {\mathbb R}^q$ are the regression coefficients; and $\theta \in \Theta" is the vector of parameters of the baseline hazard $h_0(\cdot)$.
+where ``\tilde{\bf x}\in{\mathbb R}^q`` are the available covariates; ``\alpha \in {\mathbb R}^q`` are the regression coefficients; and ``\theta \in \Theta`` is the vector of parameters of the baseline hazard ``h_0(\cdot)``.
 
 ```@docs
 AcceleratedHazard
@@ -137,99 +145,86 @@ The current version of the `simGH` command implements the following parametric b
 
 
 # Illustrative example: Julia code
-In this example, we simulate $n=1,000$ times to event from the GH, PH, AFT, and AH models with PGW baseline hazards, using the `simGH()` function. This functionality was ported from [HazReg.jl](https://github.com/FJRubio67/HazReg.jl) 
+In this example, we simulate ``n=1,000`` times to event from the GH, PH, AFT, and AH models with PGW baseline hazards, using the `simGH()` function. This functionality was ported from [HazReg.jl](https://github.com/FJRubio67/HazReg.jl) 
 
 ## PGW-GH model
 
 ```@example 1
-using SurvivalModels, Distributions, DataFrames, Random
+using SurvivalModels, Distributions, DataFrames, Random, SurvivalDistributions
 using SurvivalModels: simGH
+
+# Simulte design matrices
+n = 1000
 Random.seed!(123)
-
-# Sample size
-n = 10_000
-
-# Simulated design matrices
 des = randn(n, 2)
-des_t = randn(n)
+des_t = randn(n, 2)
 
 # True parameters
 theta0 = [0.1, 2.0, 5.0]
-alpha0 = [0.5]
+alpha0 = [0.5, 0.8]
 beta0 = [-0.5, 0.75]
 
 # Construct the model directly (no optimization)
-model = GeneralHazard(
-    zeros(n), trues(n), PowerGeneralizedWeibull(theta0...),
-    des, des_t,
-    alpha0, beta0
-)
+model = GeneralHazard(zeros(n), trues(n), 
+    PowerGeneralizedWeibull(theta0...),
+    des, des_t, alpha0, beta0)
 
 # Simulate event times
 simdat = simGH(n, model)
 
-# Censoring
+# Administrative censoring. 
 cens = 10
 status = simdat .< cens
 simdat = min.(simdat, cens)
 
-# Prepare DataFrame
-df = DataFrame(time=simdat, status=status, x1=des[:,1], x2=des[:,2], z1=des_t)
-
-# Model fit (using new interface)
+# Model fit from dataframe interface. 
+df = DataFrame(time=simdat, status=status, x1=des[:,1], x2=des[:,2], z1=des_t[:,1], z2=des_t[:,2])
 model = fit(GeneralHazard{PowerGeneralizedWeibull}, 
     @formula(Surv(time, status) ~ x1 + x2), 
-    @formula(Surv(time, status) ~ z1), 
+    @formula(Surv(time, status) ~ z1 + z2), 
     df)
+
+result = DataFrame(
+    Parameter = ["θ₁", "θ₂", "θ₃", "α₁", "α₂","β₁", "β₂"],
+    True      = vcat(theta0, alpha0, beta0),
+    Fitted    = vcat(params(model.baseline)..., model.α, model.β)
+)
 ```
 
-
+Of course, increasing hte numebr of observations would increase the quality of the fitted values. You can also use "subset" models (PH, AH, AFT) through the convenient constructors as follows: 
 
 ## PGW-PH model
 
 ```@example 1
-using SurvivalModels, Distributions, DataFrames, Random
-
-n = 10_000
-Random.seed!(123)
-des = randn(n, 2)
-theta0 = [0.1, 2.0, 5.0]
-beta0 = [-0.5, 0.75]
-
-# Construct the model directly (no optimization)
-model = ProportionalHazard(
-    zeros(n), trues(n), PowerGeneralizedWeibull(theta0...),
+model = ProportionalHazard(zeros(n), trues(n), 
+    PowerGeneralizedWeibull(theta0...),
     des, zeros(n,0),  # X2 is empty for PH
     zeros(0), beta0
 )
 
-# Simulate event times
+# Simulate event times and censor them
 simdat = simGH(n, model)
-
-# Censoring
 cens = 10
 status = simdat .< cens
 simdat = min.(simdat, cens)
 
-df = DataFrame(time=simdat, status=status, x1=des[:,1], x2=des[:,2])
 
+# Build the model and fit it: 
+df = DataFrame(time=simdat, status=status, x1=des[:,1], x2=des[:,2])
 model = fit(ProportionalHazard{PowerGeneralizedWeibull}, 
-    @formula(Surv(time, status) ~ x1 + x2), 
-    df)
+    @formula(Surv(time, status) ~ x1 + x2), df)
+
+result = DataFrame(
+    Parameter = ["θ₁", "θ₂", "θ₃", "β₁", "β₂"],
+    True      = vcat(theta0, beta0),
+    Fitted    = vcat(params(model.baseline)..., model.β)
+)
 ```
 
 
 ## PGW-AFT model
 
 ```@example 1
-using SurvivalModels, Distributions, DataFrames, Random
-
-n = 10_000
-Random.seed!(123)
-des = randn(n, 2)
-
-theta0 = [0.1, 2.0, 5.0]
-beta0 = [-0.5, 0.75]
 
 # Construct the model directly (no optimization)
 model = AcceleratedFaillureTime(
@@ -247,10 +242,14 @@ status = simdat .< cens
 simdat = min.(simdat, cens)
 
 df = DataFrame(time=simdat, status=status, x1=des[:,1], x2=des[:,2])
-
 model = fit(AcceleratedFaillureTime{PowerGeneralizedWeibull}, 
-    @formula(Surv(time, status) ~ x1 + x2), 
-    df)
+    @formula(Surv(time, status) ~ x1 + x2), df)
+
+result = DataFrame(
+    Parameter = ["θ₁", "θ₂", "θ₃", "β₁", "β₂"],
+    True      = vcat(theta0, beta0),
+    Fitted    = vcat(params(model.baseline)..., model.β)
+)
 ```
 
 
@@ -258,35 +257,28 @@ model = fit(AcceleratedFaillureTime{PowerGeneralizedWeibull},
 ## PGW-AH model
 
 ```@example 1
-using SurvivalModels, Distributions, DataFrames, Random
-
-n = 10_000
-Random.seed!(123)
-des_t = randn(n, 2)
-
-theta0 = [0.1, 2.0, 5.0]
-alpha0 = [-0.5, 0.75]
-
 # Construct the model directly (no optimization)
-model = AcceleratedHazard(
-    zeros(n), trues(n), PowerGeneralizedWeibull(theta0...),
+model = AcceleratedHazard(zeros(n), trues(n), 
+    PowerGeneralizedWeibull(theta0...),
     zeros(n,0), des_t,  # X1 is empty for AH
     alpha0, zeros(0)
 )
 
 # Simulate event times
 simdat = simGH(n, model)
-
-# Censoring
 cens = 10
 status = simdat .< cens
 simdat = min.(simdat, cens)
 
 df = DataFrame(time=simdat, status=status, z1=des_t[:,1], z2=des_t[:,2])
-
 model = fit(AcceleratedHazard{PowerGeneralizedWeibull}, 
-    @formula(Surv(time, status) ~ z1 + z2), 
-    df)
+    @formula(Surv(time, status) ~ z1 + z2), df)
+
+result = DataFrame(
+    Parameter = ["θ₁", "θ₂", "θ₃", "α₁", "α₂"],
+    True      = vcat(theta0, alpha0),
+    Fitted    = vcat(params(model.baseline)..., model.α)
+)
 ```
 
 ```@bibliography
