@@ -4,8 +4,6 @@ CurrentModule = SurvivalModels
 
 # Cox models
 
-## Introduction to Survival Analysis
-
 ## The Cox Proportional Hazards Model: Theory
 
 The Cox Proportional Hazards Model [cox1972regression](@cite) is a semi-parametric model used to analyze time-to-event data. It models the relationship between the survival time of an individual and a set of explanatory variables (covariates). 
@@ -25,7 +23,46 @@ where:
 
 The term $exp(\mathbf{X}^T\mathbf{\beta})$ is often called the hazard ratio.
 
-### 2. The Partial-Likelihood Function
+### 2. The Survival Function
+
+The **survival function**, $S(t)$, which represents the probability that an individual survives beyond time $t$.
+
+```math
+S(t | \mathbf{X}) = \exp\left(-\int_0^t h(u | \mathbf{X}) du\right)
+```
+After substituting the Cox hazard function:
+
+```math
+S(t | \mathbf{X}) = \exp\left(-\exp(\mathbf{X}^\top \boldsymbol{\beta}) \int_0^t h_0(u) du\right)
+```
+with ``H_0(t) = \int_0^t h_0(u) du ``
+
+Finally, 
+
+```math
+S(t | \mathbf{X}) = \exp\left(-\exp(\mathbf{X}^\top \boldsymbol{\beta}) H_0(t)\right)
+```
+
+### 3. The Full Likelihood Function 
+
+The full likelihood function includes the baseline hazard:
+
+```math
+L(\boldsymbol{\beta}, h_0(\cdot)) = \prod_{i=1}^n \left( h(t_i | \mathbf{X}_i) \right)^{\Delta_i} S(t_i | \mathbf{X}_i)
+```
+with:
+
+- ``h(t_i | \mathbf{X}_i)`` for the individuals at risk of the event at time $t_i(\Delta_i​=1)$
+- ``S(t_i | \mathbf{X}_i)`` for the individuals censored at time $t_i​(\Delta_i​=0)$
+
+And if we substitute the hazard and survival function:
+
+```math
+L(\boldsymbol{\beta}, h_0(\cdot)) = \prod_{i=1}^n \left( h_0(t_i) \exp(\mathbf{X}_i^\top \boldsymbol{\beta}) \right)^{\Delta_i} \exp\left(-\exp(\mathbf{X}_i^\top \boldsymbol{\beta}) H_0(t_i)\right)
+```
+
+
+### 4. The Partial-Likelihood Function
 Since the baseline hazard function $h_0(t)$ is unspecified, a standard likelihood function cannot be formed directly. Instead, Cox introduced the concept of a partial likelihood. This approach focuses on the order of events rather than their exact timings, factoring out the unknown $h_0(t)$.
 
 For each distinct observed event time $t_(j)$, we consider the set of individuals who are "at risk" of experiencing the event just before $t_(j)$. This is called the risk set, $R(t_(j))$. The partial likelihood is constructed by considering the probability that the specific individual(s) who experienced the event at $t_(j)$ were the ones to fail, given that some event occurred among the individuals in $R(t_(j))$.
@@ -44,9 +81,9 @@ where:
 - ``R_j`` is the risk set at time ``t_{(j)}``, comprising all individuals who are still at risk (have not yet experienced the event or been censored) just- before ``t_{(j)}``.
 - ``\mathbf{X}_i`` is the covariate vector for individual ``i``.
 
-### 3. The Loss Function (Negative Log-Partial-Likelihood)
+### 5. The Loss Function (Negative Log-Partial-Likelihood)
 
-Our goal is to estimate the regression coefficients $mathbf{\beta}$ by maximizing the partial-likelihood function $L(mathbf{\beta})$. Equivalently, it is often more convenient to minimize its negative logarithm, which we define as our loss function:
+Our goal is to estimate the regression coefficients $\mathbf{\beta}$ by maximizing the partial-likelihood function $L(\mathbf{\beta})$. Equivalently, it is often more convenient to minimize its negative logarithm, which we define as our loss function:
 
 ```math
 \text{Loss}(\mathbf{\beta}) = - \log L(\mathbf{\beta}) 
@@ -72,7 +109,7 @@ function loss(beta, M::Cox)
 end
 ```
 
-### 4. Gradient of the Loss Function
+### 6. Gradient of the Loss Function
 
 To find the optimal $mathbf{\beta}$, we need to minimize the loss function. 
 
@@ -81,7 +118,7 @@ The gradient of the loss function with respect to a specific coefficient $\beta_
 ```math
 \frac{\partial}{\partial \beta_k} \text{Loss}(\mathbf{\beta}) = - \sum_{i=1}^{n} \left( X_{ik} - \frac{\sum_{j \in R_i} \exp(\mathbf{\beta}^T\mathbf{X}_j) X_{jk}}{\sum_{j \in R_i} \exp(\mathbf{\beta}^T\mathbf{X}_j)} \right)
 ```
-### 5. Hessian Matrix of the Loss Function
+### 7. Hessian Matrix of the Loss Function
 
 For optimization algorithms like Newton-Raphson and for calculating standard errors, the Hessian matrix (matrix of second partial derivatives) of the loss function is required.
 
@@ -91,7 +128,7 @@ The entry for the $k$-th row and $l$-th column of the Hessian matrix is:
 \frac{\partial^2}{\partial \beta_k \partial \beta_l} \text{Loss}(\mathbf{\beta}) = \sum_{i=1}^{n} \Delta_i \left[ \frac{\sum_{j \in R_i} \exp(\mathbf{\beta}^T\mathbf{X}_j) X_{jk}X_{jl}}{\sum_{j \in R_i} \exp(\mathbf{\beta}^T\mathbf{X}_j)} - \frac{\left( \sum_{j \in R_i} \exp(\mathbf{\beta}^T\mathbf{X}_j) X_{jk} \right) \left( \sum_{j \in R_i} \exp(\mathbf{\beta}^T\mathbf{X}_j) X_{jl} \right)}{\left( \sum_{j \in R_i} \exp(\mathbf{\beta}^T\mathbf{X}_j) \right)^2} \right]
 ```
 
-### 6. Information Matrix and Variance-Covariance Matrix
+### 8. Information Matrix and Variance-Covariance Matrix
 
 The observed Information Matrix, $I(\hat{\boldsymbol{\beta}})$, is defined as the negative of the Hessian matrix of the log-likelihood function, evaluated at the maximum likelihood estimates $\hat{\boldsymbol{\beta}}$.
 
@@ -111,7 +148,7 @@ This final matrix contains:
 - On its diagonal: the variances of each coefficient ($\text{Var}(\hat{\beta}_1)$, $\text{Var}(\hat{\beta}_2)$, ...).
 - Off-diagonal: the covariances between pairs of coefficients.
 
-### 7. Standard Error
+### 9. Standard Error
 
 The standard error for a specific coefficient ($\hat{\beta}_k$) is the square root of its variance.
 
@@ -119,7 +156,7 @@ The standard error for a specific coefficient ($\hat{\beta}_k$) is the square ro
 SE(\hat{\beta}_k) = \sqrt{\text{Var}(\hat{\beta}_k)}
 ```
 
-### 8. Wald Test for Significance
+### 10. Wald Test for Significance
 
 To determine if a variable has a statistically significant effect, a Wald test is performed. A z-score is calculated:
 
@@ -131,7 +168,7 @@ This $z$-score is then compared to a normal distribution to obtain a $p$-value. 
 
 The p-value for each coefficient is calculated by comparing its z-score to a standard normal distribution. This p-value indicates the probability of observing a z-score as extreme as, or more extreme than, the one calculated, assuming the null hypothesis (that the coefficient is zero) is true.
 
-### 9. Confidence Interval
+### 11. Confidence Interval
 The standard error allows for the construction of a confidence interval (CI) around the coefficient, which provides a range of plausible values for the true coefficient.
 
 The general formula for a $(1 - \alpha) \times 100\%$ confidence interval is:
@@ -175,7 +212,7 @@ To implement the Cox proportional hazards model, different versions were coded, 
 The final goal is to compare these versions and choose the most efficient one: the fastest and the closest to the true values
 of the coefficients. 
 
-### V0
+### V0: Derivative-Free Optimization with Nelder-Mead
 
 ```@docs
 CoxV0
@@ -189,6 +226,8 @@ CoxV1
 
 ### V2: Implementation using the gradient and the Hessian matrix
 
+For this version the Hessian Matrix was directly implemented. Its complexity is O(n2m2) which makes it the slowest version.
+
 ```@docs
 CoxV2
 ```
@@ -200,6 +239,36 @@ CoxV3
 ```
 
 ### V4: Majoration of the Hessian matrix by a universal bound.
+
+Coding the Hessian Matrix for the CoxV2 was very impratical, so for this version we tried a different approach: 
+
+The Hessian Matrix simplifies for the diagonal terms as folllows: 
+
+```math
+\frac{\partial^2 \text{Loss}(\mathbf{\beta})}{\partial \beta_k^2} = \sum_{i=1}^{n} \Delta_i \left[ \frac{\sum_{j \in R_i} \exp(\mathbf{\beta}^T\mathbf{X}_j) X_{jk}^2}{\sum_{j \in R_i} \exp(\mathbf{\beta}^T\mathbf{X}_j)} - \left( \frac{\sum_{j \in R_i} \exp(\mathbf{\beta}^T\mathbf{X}_j) X_{jk}}{\sum_{j \in R_i} \exp(\mathbf{\beta}^T\mathbf{X}_j)} \right)^2 \right]
+```
+This can be expressed using the concept of variance. 
+
+```math
+\frac{\partial^2 \text{Loss}(\mathbf{\beta})}{\partial \beta_k^2} = \sum_{i=1}^{n} \Delta_i \left[ \sum_{j \in R_i} A_j X_{jk}^2 - \left( \sum_{j \in R_i} A_j X_{jk} \right)^2 \right]
+```
+with:
+
+```math
+A_{j} = \frac{\exp(\mathbf{\beta}^T\mathbf{X}_j)}{\sum_{j \in R_i} \exp(\mathbf{\beta}^T\mathbf{X}_j)}
+```
+
+The upper bound for the variance of a variable $X$ on an interval $[a,b]$ is given by:
+
+```math
+\text{Var}(X) \le \frac{1}{4}(b-a)^2
+```
+
+Applying this bound to the diagonal Hessian elements, we get an approximation for the k-th diagonal element, B_k:
+
+```math
+B_k = \sum_{i=1}^n \frac{1}{4} \Delta_i \left( \max_{j \in R_i} X_{jk} - \min_{j \in R_i} X_{jk} \right)^2
+```
 
 ```@docs
 CoxV4
@@ -216,6 +285,7 @@ CoxV5
 We propose to compare the different methods on simulated data, with varying number of lines and columns, to verify empirically the theoretical complexity of the different methods. 
 We will then compare the results with Julia's and R's existing Cox implementation.
 
+We will start by coding our Julia and R structures: 
 
 ```@example 1
 using SurvivalModels, Plots, Random, Distributions, StatsBase, LinearAlgebra, DataFrames, RCall, Survival
@@ -264,15 +334,16 @@ function SurvivalModels.getβ(M::CoxVR)
     return beta
 end
 ```
+Then, we will simulate our data and then run our models:
 
 ```@example 1
 # Creating a dictionary for all the models:
 # Label => (constructor, plotting color)
 
 const design = Dict(
-"V0"=> (CoxV0, :blue),
-"V1"=> (CoxV1, :orange),
-"V2"=> (CoxV2, :brown),
+#"V0"=> (CoxV0, :blue),
+#"V1"=> (CoxV1, :orange),
+#"V2"=> (CoxV2, :brown),
 "V3"=> (CoxV3, :purple),
 "V4"=> (CoxV4, :green),
 "V5"=> (CoxV5, :yellow),
@@ -323,12 +394,12 @@ end
 
 # Run the models and get the running time, the β coefficients and the difference between the true β and the obtained ones: 
 function run_models() 
-    Ns = (500, 1000, 2000) 
-    Ms = (10, 20) 
+    Ns = (1000, 2000, 4000) 
+    Ms = (10,)
     true_betas = randn(maximum(Ms))
     df = []
     for n in Ns, m in Ms
-        if (n == 2000) | (m == 20) # Only if they end up in the graphs.
+        if (n == 2000) | (m == 10) # Only if they end up in the graphs.
             data = simulate_survival_data(n,m, β = true_betas[1:m])
             for (name, (constructor, _)) in design
                 display((n,m,name))
@@ -350,10 +421,13 @@ function run_models()
     sort!(df, :name)
     return df
 end
+```
+The first graph will compare how long it takes for all the implementations to run on datasets that have maximum 2000 observations and 20 covariates.
 
+```@example 1
 # Plot the results, starting with the time: 
 function timing_graph(df)
-    group1 = groupby(filter(r -> r.m==20, df), :name)
+    group1 = groupby(filter(r -> r.m==10, df), :name)
     p1 = plot(; xlabel = "Number of observations (n)",
         ylabel = "Time (in seconds)",
         yscale= :log10,
@@ -385,9 +459,7 @@ df = run_models()
 timing_graph(df)
 ```
 
-comments on the graph. 
-
-A zoom on our implementation vs Survival.jl vs R::survival: 
+We can the that CoxV3 is the fastest, while CoxV2 is the slowest. We will zoom on our implementation vs Survival.jl vs R::survival: 
 
 ```@example 1
 timing_graph(filter(r -> r.name ∈ ("V3", "VJ", "VR"), df))
@@ -436,12 +508,13 @@ function beta_correctness_graphs(df; ref="VJ")
     return p
 end
 
-beta_correctness_graphs(df)
+#beta_correctness_graphs(df)
 ```
+We will compare the diffferent models' coefficents values with the "right" beta value that we obtained while simulating our data.
 
 ```@example 1
 function beta_wrt_truth(df)
-    group1 = groupby(filter(r -> r.m==20, df), :name)
+    group1 = groupby(filter(r -> r.m==10, df), :name)
     p1 = plot(; xlabel = "Number of observations (n)",
                 ylabel = "L2dist to the truth",
                 yscale=:log10,
@@ -470,6 +543,7 @@ end
 
 beta_wrt_truth(df)
 ```
+
 
 ```@bibliography
 Pages = ["cox.md"]
