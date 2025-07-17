@@ -5,10 +5,10 @@
 The second implementation of the Cox proportional hazards model uses a Newton-Raphson-like iterative update that directly calculates and utilizes the gradient and Hessian matrix. This version is updating coefficients via the update! function.
 
 Fields:
-    - X::Matrix{Float64}: The design matrix of covariates, where rows correspond to individuals and columns to features
-    - T::Vector{Float64}: The observed times, sorted in ascending order
-    - Δ::Vector{Int64}: The event indicator vector (true for event, false for censoring)
-    - R::BitMatrix: A boolean risk matrix, where 'R[i,j]' is 'true' if individual 'j' is at risk at time 'T[i]'
+- X::Matrix{Float64}: The design matrix of covariates, where rows correspond to individuals and columns to features
+- T::Vector{Float64}: The observed times, sorted in ascending order
+- Δ::Vector{Int64}: The event indicator vector (true for event, false for censoring)
+- R::BitMatrix: A boolean risk matrix, where 'R[i,j]' is 'true' if individual 'j' is at risk at time 'T[i]'
 """
 struct CoxV2<:CoxGrad
     X::Matrix{Float64}

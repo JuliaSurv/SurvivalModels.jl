@@ -6,9 +6,9 @@ The first implementation of the Cox proportional hazards model uses optimization
 It uses the BFGS algorithm to minimize the negative partial log-likelihood. 
 
 Fields: 
-    - X::Matrix{Float64}: The design matrix of covariates, where rows correspond to individuals and columns to features.
-    - T::Vector{Float64}: The observed times, sorted in ascending order
-    - Δ::Vector{Int64}: The event indicator vector (true for event, false for censoring)
+- X::Matrix{Float64}: The design matrix of covariates, where rows correspond to individuals and columns to features.
+- T::Vector{Float64}: The observed times, sorted in ascending order
+- Δ::Vector{Int64}: The event indicator vector (true for event, false for censoring)
 """
 struct CoxV1<:Cox
     X::Matrix{Float64}

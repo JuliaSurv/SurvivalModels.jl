@@ -93,8 +93,11 @@ struct KaplanMeier{T}
 end
 
 function StatsBase.fit(::Type{T}, formula::FormulaTerm, df::DataFrame) where {T<:KaplanMeier}
-    resp = modelcols(apply_schema(formula,schema(df)).lhs,df)
-    return KaplanMeier(resp[:,1], resp[:,2])
+    lhs_vars = StatsModels.termvars(formula.lhs)
+    resp = modelcols(formula.lhs, df[:, lhs_vars])
+    Tvec = getindex.(resp, 1)
+    Δvec = getindex.(resp, 2)
+    return KaplanMeier(Tvec, Δvec)
 end
 
 # Survival estimate Ŝ(t)
