@@ -152,7 +152,7 @@ using SurvivalModels, Distributions, DataFrames, Random, SurvivalDistributions
 using SurvivalModels: simGH
 
 # Simulte design matrices
-n = 1000
+n = 100
 Random.seed!(123)
 des = randn(n, 2)
 des_t = randn(n, 2)
