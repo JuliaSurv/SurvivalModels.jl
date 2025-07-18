@@ -151,8 +151,9 @@ end
 struct Cox{CM}
     M::CM
     β::Vector{Float64}
-    function Cox(obj::CM) where {CM <: CoxMethod}
-        new{CM}(obj, getβ(obj))
+    pred_names::Vector{Symbol}
+    function Cox(obj::CM, names) where {CM <: CoxMethod}
+        new{CM}(obj, getβ(obj), names)
     end
 end
 
@@ -162,13 +163,15 @@ function StatsBase.fit(::Type{T}, formula::FormulaTerm, df::DataFrame) where T<:
     resp = modelcols(formula_applied.lhs, df)
     X = modelcols(formula_applied.rhs, df)
     Y, Δ = resp[:, 1], Bool.(resp[:, 2])
-    return Cox(CoxWorkerType(Y, Δ, X))
+    predictor_names = coefnames(formula_applied.rhs)
+    return Cox(CoxWorkerType(Y, Δ, X), Symbol.(predictor_names))
 end
 
-function show(io::IO, C::Cox)
+function Base.show(io::IO, C::Cox)
 
     model = C.M
     beta = C.β
+    predictor_names = C.pred_names
 
     # Standard Error:
     H_matrice = get_H(model, beta)
@@ -182,17 +185,14 @@ function show(io::IO, C::Cox)
     #P-values: 
     p_values = 2 .* ccdf.(Normal(), abs.(z_scores))
 
-    # Coefficient names:
-    predictor_names = coefnames(formula_applied.rhs)
-
     # Print the summary:
-    println(io, "Cox Proportional Hazards Model Summary")
+    println(io, "Cox Model (n: $(nobs(model)), m: $(nvar(model)), method: $(typeof(C).parameters[1]))")
     Base.show(DataFrame(
-        Predictor = predictor_names,
+        predictor = predictor_names,
         β = beta,
-        SE = se,
-        P_Value = p_values,
-        z = z_scores 
+        se = se,
+        p_values = p_values,
+        z_scores = z_scores 
     ))
 end
 
