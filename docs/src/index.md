@@ -32,10 +32,3 @@ The package is available in Julia's `General` registry, and thus can be installe
 
 ```@index
 ```
-
-# References
-
-```@bibliography
-Pages = ["index.md"]
-Canonical = false
-```
