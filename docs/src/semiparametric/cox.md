@@ -202,7 +202,7 @@ model_colon = fit(Cox, @formula(Surv(Time, Status) ~ Age + Rx), colon)
 The outputed dataframe contains columns with respectively the name of the predictor, the obtained coefficients, its standard error, the associated p-value and the test statistic z as just described. 
 
 ```@docs
-Cox
+CoxMethod
 ```
 
 
@@ -371,8 +371,8 @@ function run_models()
             for (name, (constructor, _)) in design
                 display((n,m,name))
                 model = constructor(data...)
-                beta = getβ(model.M)
-                time = @elapsed getβ(model.M)
+                beta = getβ(model)
+                time = @elapsed getβ(model)
                 push!(df, (
                     n = n, 
                     m = m, 
