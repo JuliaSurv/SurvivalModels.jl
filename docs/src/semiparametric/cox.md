@@ -295,7 +295,7 @@ using SurvivalModels: getβ, CoxV0, CoxV1, CoxV2, CoxV3, CoxV4, CoxV5
 We add specific code to compare with `Survival.jl` and also `R::survival::coxph()`:
 
 ```@example 1
-struct CoxVJ
+struct CoxVJ<:SurvivalModels.CoxMethod
     T::Vector{Float64}
     Δ::Vector{Bool}
     X::Matrix{Float64}
@@ -312,7 +312,7 @@ R"""
 library(survival)
 """
 
-struct CoxVR
+struct CoxVR<:SurvivalModels.CoxMethod
     df::DataFrame
     function CoxVR(T,Δ,X)
         df = DataFrame(X,:auto)
@@ -371,8 +371,8 @@ function run_models()
             for (name, (constructor, _)) in design
                 display((n,m,name))
                 model = constructor(data...)
-                beta = getβ(model)
-                time = @elapsed getβ(model)
+                beta = getβ(model.M)
+                time = @elapsed getβ(model.M)
                 push!(df, (
                     n = n, 
                     m = m, 

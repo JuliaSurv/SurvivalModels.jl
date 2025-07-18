@@ -31,10 +31,10 @@ Types:
 - CoxLLH<:CoxGrad : abstract type for Cox models that are solved by optimizing the log-likelihood
 
 """
-abstract type Cox end
-nobs(M::Cox) = size(M.X,1) # Default to X being (n,m), should redefine for other choices; 
-nvar(M::Cox) = size(M.X,2)
-function loss(beta, M::Cox)
+abstract type CoxMethod end
+nobs(M::CoxMethod) = size(M.X,1) # Default to X being (n,m), should redefine for other choices; 
+nvar(M::CoxMethod) = size(M.X,2)
+function loss(beta, M::CoxMethod)
 
     # Requires the presence of 
     # M.X
@@ -45,7 +45,7 @@ function loss(beta, M::Cox)
     return dot(M.Δ, log.((M.T .<= M.T') * exp.(η)) .- η)
 end
 
-abstract type CoxGrad<:Cox end
+abstract type CoxGrad<:CoxMethod end
 abstract type CoxLLH<:CoxGrad end
 
 function getβ(M::CoxGrad; max_iter = 10000, tol = 1e-9)
@@ -147,19 +147,29 @@ function get_H(M::CoxV3, ::Vector{Float64})
     return M.H 
 end
 
-function StatsBase.fit(::Type{T}, formula::FormulaTerm, df::DataFrame) where T<:Cox
-    CoxVersion = isconcretetype(T) ? T : CoxV3
-    formula_applied = apply_schema(formula, schema(df))
 
+struct Cox{CM}
+    M::CM
+    β::Vector{Float64}
+    function Cox(obj::CM) where {CM <: CoxMethod}
+        new{CM}(obj, getβ(obj))
+    end
+end
+
+function StatsBase.fit(::Type{T}, formula::FormulaTerm, df::DataFrame) where T<:Union{CoxMethod,Cox}
+    CoxWorkerType = (isconcretetype(T) || T != Cox) ? T : CoxV3
+    formula_applied = apply_schema(formula, schema(df))
     resp = modelcols(formula_applied.lhs, df)
     X = modelcols(formula_applied.rhs, df)
-    time = resp[:, 1]
-    status = Bool.(resp[:, 2])
-    model = CoxVersion(time, status, X)
+    Y, Δ = resp[:, 1], Bool.(resp[:, 2])
+    return Cox(CoxWorkerType(Y, Δ, X))
+end
 
-    # Get the return output:
-    # β coefficients:
-    beta = getβ(model)
+function show(io::IO, C::Cox)
+
+    model = C.M
+    beta = C.β
+
     # Standard Error:
     H_matrice = get_H(model, beta)
     vcov_matrix = inv(H_matrice)
@@ -172,14 +182,18 @@ function StatsBase.fit(::Type{T}, formula::FormulaTerm, df::DataFrame) where T<:
     #P-values: 
     p_values = 2 .* ccdf.(Normal(), abs.(z_scores))
 
-    predictor_names = coefnames(formula_applied.rhs)  
-    return DataFrame(
+    # Coefficient names:
+    predictor_names = coefnames(formula_applied.rhs)
+
+    # Print the summary:
+    println(io, "Cox Proportional Hazards Model Summary")
+    Base.show(DataFrame(
         Predictor = predictor_names,
         β = beta,
         SE = se,
         P_Value = p_values,
         z = z_scores 
-    )
+    ))
 end
 
 

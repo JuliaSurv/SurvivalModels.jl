@@ -10,7 +10,7 @@ Fields:
 - T::Vector{Float64}: The observed times, sorted in ascending order 
 - Δ::Vector{Bool}: The event indicator vector (true for event, false for censoring)
 """
-struct CoxV0 <: Cox
+struct CoxV0 <: CoxMethod
     X::Matrix{Float64}
     T::Vector{Float64}
     Δ::Vector{Bool}
