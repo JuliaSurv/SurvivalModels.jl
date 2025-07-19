@@ -15,11 +15,10 @@ The `SurivalModels.jl` package is part of the `JuliaSurv` survival analysis suit
 
 # Getting started
 
-The package is not yet available on Julai's General registry, so for the moment you have you use the following to install it : 
+The package available on Julai's General registry, therefore you can use the following to install it : 
 
 ```julia
-using Pkg
-Pkg.add("https://github.com/JuliaSurv/SurvivalModels.jl.git")
+] add SurvivalModels
 ```
 
 # Features / Roadmap
@@ -33,10 +32,13 @@ The package targets for the moment the following features:
     - [x] Cox (See PR #15)
     - [ ] Aalen
 - Parametric
-    - [ ] General Hazard models (See PR #4, sucessor of [`HazReg.jl`](https://github.com/FJRubio67/HazReg.jl)
-    - Frailties ? 
-- Others ?? 
-- Junction with [`NetSurvival.jl`](https://github.com/JuliaSurv/NetSurvival.jl) to provide the same models on net survival instead of survival ? (i.e. with a population mortality offset.)
+    - [x] General Hazard models
+    - [ ] Frailties ?
+    - [ ] Mixed models ?
+    - [ ] More generic predictors such as splines ? 
+- [ ] Junction with [`NetSurvival.jl`](https://github.com/JuliaSurv/NetSurvival.jl) to provide the same models on net survival instead of survival ? (i.e. with a population mortality offset.)
+- [ ] 
+- [ ] Something else on this list ? Open a PR :)
 
 In term of interface, we leverage the standard modeling interface from `StatsBase.jl`/`StatsAPI.jl`/`StatsModels.jl`. 
 
