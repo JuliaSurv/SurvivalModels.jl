@@ -149,7 +149,7 @@ function summary(C::Cox)
 
     return DataFrame(
         predictor = C.pred_names,
-        β = beta,
+        β = C.β,
         se = se,
         p_values = p_values,
         z_scores = z_scores 
