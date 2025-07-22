@@ -196,19 +196,12 @@ function harrells_c(times, statuses, risk_scores)
 	return (concordant_pairs + 0.5 * tied_risk_pairs) / permissible_pairs
 end
 
-struct Cox{CM, T<:AbstractVector, S<:AbstractVector, R<:AbstractVector}
+struct Cox{CM}
     M::CM
     β::Vector{Float64}
     pred_names::Vector{Symbol}
-
-    times::T
-    statuses::S
-    risk_scores::R
-    c_index::Float64 
-
-    function Cox(obj::CM, names, times::T, statuses::S, risk_scores::R) where {CM <: CoxMethod, T<:AbstractVector, S<:AbstractVector, R<:AbstractVector}
-        c_index = harrells_c(times, statuses, risk_scores)
-        new{CM, T, S, R}(obj, getβ(obj), names, times, statuses, risk_scores, c_index)
+    function Cox(obj::CM, names) where {CM <: CoxMethod}
+        new{CM}(obj, getβ(obj), names)
     end
 end
 
@@ -218,10 +211,10 @@ function StatsBase.fit(::Type{T}, formula::FormulaTerm, df::DataFrame) where T<:
     resp = modelcols(formula_applied.lhs, df)
     X = modelcols(formula_applied.rhs, df)
     Y, Δ = resp[:, 1], Bool.(resp[:, 2])
-    predictor_names = coefnames(formula_applied.rhs) 
-
-    return Cox(CoxWorkerType(Y, Δ, X), Symbol.(predictor_names),Y, Δ, X * getβ(CoxWorkerType(Y, Δ, X)))
+    predictor_names = coefnames(formula_applied.rhs)
+    return Cox(CoxWorkerType(Y, Δ, X), Symbol.(predictor_names))
 end
+
 
 function Base.show(io::IO, C::Cox)
 
@@ -229,7 +222,9 @@ function Base.show(io::IO, C::Cox)
     beta = C.β
     predictor_names = C.pred_names
 
-    c_index = C.c_index 
+    c_index = harrells_c(model.T, model.Δ, model.Xᵗ' * beta
+    )
+
 
     # Standard Error:
     H_matrice = get_H(model, beta)
