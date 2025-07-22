@@ -125,7 +125,7 @@ function get_hessian(M::CoxMethod, β)
     return H
 end
 get_hessian(M::CoxV2, β) = deriv_loss(β, M)[2]
-get_hessian(M::CoxV3, _) = M.
+get_hessian(M::CoxV3, _) = M.H
 get_hessian(C::Cox) = get_hessian(C.M, C.β)
 
 # Compute Harrel's C-index: 
