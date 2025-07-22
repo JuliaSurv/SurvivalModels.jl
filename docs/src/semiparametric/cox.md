@@ -339,9 +339,9 @@ Then, we will simulate our data and then run our models:
 # Label => (constructor, plotting color)
 
 const design = Dict(
-#"V0"=> (CoxV0, :blue),
-#"V1"=> (CoxV1, :orange),
-#"V2"=> (CoxV2, :brown),
+"V0"=> (CoxV0, :blue),
+"V1"=> (CoxV1, :orange),
+"V2"=> (CoxV2, :brown),
 "V3"=> (CoxV3, :purple),
 "V4"=> (CoxV4, :green),
 "V5"=> (CoxV5, :yellow),
@@ -362,7 +362,7 @@ end
 # Run the models and get the running time, the β coefficients and the difference between the true β and the obtained ones: 
 function run_models() 
     Ns = (1000, 2000, 4000) 
-    Ms = (10,)
+    Ms = (5,10,20)
     true_betas = randn(maximum(Ms))
     df = []
     for n in Ns, m in Ms
@@ -429,7 +429,7 @@ timing_graph(df)
 We can the that CoxV3 is the fastest, while CoxV2 is the slowest. We will zoom on our implementation vs Survival.jl vs R::survival: 
 
 ```@example 1
-timing_graph(filter(r -> r.name ∈ ("V3", "VJ", "VR"), df))
+timing_graph(filter(r -> r.name ∈ ("V4", "V3", "VJ", "VR"), df))
 ```
 
 So we are about x10 faster than the reference implementation of R (and than the previous Julia versions) on this example. 
@@ -488,24 +488,13 @@ function beta_wrt_truth(df)
                 xscale= :log10,
                 title = "m=20, varying n",
                 legend = :bottomright,
-                lw = 1);
+                lw = 1,
+                plot_title="β-correctness w.r.t. the truth.");
     for g in group1
         plot!(p1, g.n, g.diff_to_truth, label = g.name[1] , color = design[g.name[1]][2], marker = :circle, markersize = 3)  
     end
 
-    group2 = groupby(filter(r -> r.n==2000, df), :name)
-    p2 = plot(; xlabel = "Nomber of covariates (m)",
-                ylabel = "L2Dist to the truth",
-                yscale=:log10,
-                xscale= :log10,
-                title = "n=2000, varying m",
-                legend = :bottomright,
-                lw = 1);
-    for g in group2
-        plot!(p2, g.m, g.diff_to_truth, label = g.name[1] , color = design[g.name[1]][2], marker = :circle, markersize = 3)  
-    end
-    p = plot(p1,p2, size=(1200,600), plot_title="β-correctness w.r.t. the truth.")
-    return p
+    return p1
 end   
 
 beta_wrt_truth(df)
