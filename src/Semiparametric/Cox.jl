@@ -87,7 +87,7 @@ include("Cox/v5.jl")
 
 # Extract the matrix of X's : 
 getX(M::CoxMethod) = M.X
-getX(M::CoxV5) = M.Xᵗ'
+getX(M::Union{CoxV3,CoxV5}) = M.Xᵗ'
 
 # Extract the hessian: 
 function get_hessian(M::CoxMethod, β)
