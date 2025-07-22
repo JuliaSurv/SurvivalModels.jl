@@ -129,53 +129,7 @@ get_hessian(M::CoxV3, _) = M.
 get_hessian(C::Cox) = get_hessian(C.M, C.β)
 
 # Compute Harrel's C-index: 
-function harrells_c(times, statuses, risk_scores)
-	permissible_pairs = 0
-	concordant_pairs = 0
-	tied_risk_pairs = 0
-
-	n = length(times)
-	for i in 1:n
-		for j in (i+1):n
-			# Determine which patient has the shorter follow-up time
-			if times[i] < times[j]
-				p1_idx, p2_idx = i, j
-			elseif times[j] < times[i]
-				p1_idx, p2_idx = j, i
-			else # If times are equal, order by status (event first)
-				if statuses[i] && !statuses[j]
-					p1_idx, p2_idx = i, j
-				elseif !statuses[i] && statuses[j]
-					p1_idx, p2_idx = j, i
-				else # both have same time and status
-					continue 
-				end
-			end
-
-			# A pair is only "permissible" for comparison if the patient with the
-			# shorter follow-up time actually had an event. If they were censored,
-			# we don't know when their event would have happened, so we can't compare.
-			if statuses[p1_idx]
-				permissible_pairs += 1
-
-				# Check for concordance
-				if risk_scores[p1_idx] > risk_scores[p2_idx]
-					concordant_pairs += 1
-				elseif risk_scores[p1_idx] == risk_scores[p2_idx]
-					tied_risk_pairs += 1
-				end
-				# If risk_scores[p1_idx] < risk_scores[p2_idx], it's discordant.
-			end
-		end
-	end
-
-	if permissible_pairs == 0
-		return 0.0 # Or NaN, depending on desired behavior for no permissible pairs
-	end
-
-	return (concordant_pairs + 0.5 * tied_risk_pairs) / permissible_pairs
-end
-harrels_c(C::Cox) = harrells_c(C.M.T, C.M.Δ, getX(C.M) * C.β)
+harrells_c(C::Cox) = harrells_c(C.M.T, C.M.Δ, getX(C.M) * C.β)
 
 function StatsBase.fit(::Type{T}, formula::FormulaTerm, df::DataFrame) where T<:Union{CoxMethod,Cox}
     CoxWorkerType = (isconcretetype(T) || T != Cox) ? T : CoxV3
