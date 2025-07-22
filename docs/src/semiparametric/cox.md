@@ -512,6 +512,24 @@ beta_wrt_truth(df)
 ```
 
 
+## Model Evaluation: Harrell's Concordance Index (C-index)
+
+A key metric for assessing the predictive discrimination of a Cox model is **Harrell's concordance index (C-index)**.  
+The C-index measures the proportion of all usable patient pairs in which the predictions and outcomes are concordant: it is the probability that, for a randomly chosen pair of comparable subjects, the subject with the higher predicted risk actually experiences the event before the other. Tied risk scores count as half-concordant.
+
+The C-index ranges from 0.5 (no better than random) to 1.0 (perfect discrimination). It is outputed by the show function, and can be queried seprately too: 
+
+You can compute the C-index for a fitted Cox model using:
+
+```@example 2
+model = fit(Cox, @formula(Surv(Time, Status) ~ Age + Rx), colon)
+cindex = harrells_c(model)
+model
+```
+
+A higher C-index indicates better predictive discrimination.
+
+
 ```@bibliography
 Pages = ["cox.md"]
 Canonical = false
