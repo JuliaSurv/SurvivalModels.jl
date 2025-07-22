@@ -147,13 +147,68 @@ function get_H(M::CoxV3, ::Vector{Float64})
     return M.H 
 end
 
+# get C_index:
 
-struct Cox{CM}
+function harrells_c(times, statuses, risk_scores)
+	permissible_pairs = 0
+	concordant_pairs = 0
+	tied_risk_pairs = 0
+
+	n = length(times)
+	for i in 1:n
+		for j in (i+1):n
+			# Determine which patient has the shorter follow-up time
+			if times[i] < times[j]
+				p1_idx, p2_idx = i, j
+			elseif times[j] < times[i]
+				p1_idx, p2_idx = j, i
+			else # If times are equal, order by status (event first)
+				if statuses[i] && !statuses[j]
+					p1_idx, p2_idx = i, j
+				elseif !statuses[i] && statuses[j]
+					p1_idx, p2_idx = j, i
+				else # both have same time and status
+					continue 
+				end
+			end
+
+			# A pair is only "permissible" for comparison if the patient with the
+			# shorter follow-up time actually had an event. If they were censored,
+			# we don't know when their event would have happened, so we can't compare.
+			if statuses[p1_idx]
+				permissible_pairs += 1
+
+				# Check for concordance
+				if risk_scores[p1_idx] > risk_scores[p2_idx]
+					concordant_pairs += 1
+				elseif risk_scores[p1_idx] == risk_scores[p2_idx]
+					tied_risk_pairs += 1
+				end
+				# If risk_scores[p1_idx] < risk_scores[p2_idx], it's discordant.
+			end
+		end
+	end
+
+	if permissible_pairs == 0
+		return 0.0 # Or NaN, depending on desired behavior for no permissible pairs
+	end
+
+	return (concordant_pairs + 0.5 * tied_risk_pairs) / permissible_pairs
+end
+
+struct Cox{CM, T<:AbstractVector, S<:AbstractVector, R<:AbstractVector}
     M::CM
     β::Vector{Float64}
     pred_names::Vector{Symbol}
-    function Cox(obj::CM, names) where {CM <: CoxMethod}
-        new{CM}(obj, getβ(obj), names)
+
+    times::T
+    statuses::S
+    risk_scores::R
+    c_index::Float64 
+
+    function Cox(obj::CM, names, times::T, statuses::S, risk_scores::R) where {CM <: CoxMethod, T<:AbstractVector, S<:AbstractVector, R<:AbstractVector}
+        c_index = harrells_c(times, statuses, risk_scores)
+        new{CM, T, S, R}(obj, getβ(obj), names, times, statuses, risk_scores, c_index)
     end
 end
 
@@ -163,8 +218,9 @@ function StatsBase.fit(::Type{T}, formula::FormulaTerm, df::DataFrame) where T<:
     resp = modelcols(formula_applied.lhs, df)
     X = modelcols(formula_applied.rhs, df)
     Y, Δ = resp[:, 1], Bool.(resp[:, 2])
-    predictor_names = coefnames(formula_applied.rhs)
-    return Cox(CoxWorkerType(Y, Δ, X), Symbol.(predictor_names))
+    predictor_names = coefnames(formula_applied.rhs) 
+
+    return Cox(CoxWorkerType(Y, Δ, X), Symbol.(predictor_names),Y, Δ, X * getβ(CoxWorkerType(Y, Δ, X)))
 end
 
 function Base.show(io::IO, C::Cox)
@@ -172,6 +228,8 @@ function Base.show(io::IO, C::Cox)
     model = C.M
     beta = C.β
     predictor_names = C.pred_names
+
+    c_index = C.c_index 
 
     # Standard Error:
     H_matrice = get_H(model, beta)
@@ -187,6 +245,8 @@ function Base.show(io::IO, C::Cox)
 
     # Print the summary:
     println(io, "Cox Model (n: $(nobs(model)), m: $(nvar(model)), method: $(typeof(C).parameters[1]))")
+    println(io, "  C-index: $(c_index)")
+
     Base.show(DataFrame(
         predictor = predictor_names,
         β = beta,
