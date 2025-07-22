@@ -523,7 +523,7 @@ You can compute the C-index for a fitted Cox model using:
 
 ```@example 2
 model = fit(Cox, @formula(Surv(Time, Status) ~ Age + Rx), colon)
-cindex = harrells_c(model)
+cindex = SurvivalModels.harrells_c(model)
 model
 ```
 
