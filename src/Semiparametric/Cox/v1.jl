@@ -13,7 +13,7 @@ Fields:
 struct CoxV1<:CoxMethod
     X::Matrix{Float64}
     T::Vector{Float64}
-    Δ::Vector{Int64}
+    Δ::Vector{Bool}
     function CoxV1(T,Δ,X)
         o = sortperm(T)
         new(X[o,:],T[o],Δ[o])
