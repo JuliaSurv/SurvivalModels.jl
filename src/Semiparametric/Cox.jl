@@ -24,35 +24,32 @@ ovarian.FUStat = Bool.(ovarian.FUStat) (Status column needs to be Bool type)
 model = fit(Cox, @formula(Surv(FUTime, FUStat) ~ Age + ECOG_PS), ovarian)
 ```
 
-
 Types: 
 - Cox : the base abstract type
 - CoxGrad<:Cox : abstract type for Cox models that are solved using gradient-based optimization
 - CoxLLH<:CoxGrad : abstract type for Cox models that are solved by optimizing the log-likelihood
 
 """
-abstract type Cox end
-nobs(M::Cox) = size(M.X,1) # Default to X being (n,m), should redefine for other choices; 
-nvar(M::Cox) = size(M.X,2)
-function loss(beta, M::Cox)
+abstract type CoxMethod end
+abstract type CoxGrad<:CoxMethod end
+abstract type CoxLLH<:CoxGrad end
+struct Cox{CM}
+    M::CM
+    β::Vector{Float64}
+    pred_names::Vector{Symbol}
+    function Cox(obj::CM, names) where {CM <: CoxMethod}
+        new{CM}(obj, getβ(obj), names)
+    end
+end
 
-    # Requires the presence of 
-    # M.X
-    # M.Δ
-    # M.T
-    # This is not very efficient. 
+nobs(M::CoxMethod) = size(M.X,1) # Default to X being (n,m)
+nvar(M::CoxMethod) = size(M.X,2)
+function loss(beta, M::CoxMethod)
     η = M.X*beta
     return dot(M.Δ, log.((M.T .<= M.T') * exp.(η)) .- η)
 end
 
-abstract type CoxGrad<:Cox end
-abstract type CoxLLH<:CoxGrad end
-
 function getβ(M::CoxGrad; max_iter = 10000, tol = 1e-9)
-
-    # Requires the presence of: 
-    # update!(β, M)
-    # i.e all models exept the v1 i think.
     β = zeros(nvar(M))
     βᵢ = similar(β)
     for i in 1:max_iter
@@ -65,9 +62,7 @@ function getβ(M::CoxGrad; max_iter = 10000, tol = 1e-9)
     end
     return β
 end
-
 function getβ(M::CoxLLH; max_iter = 10000, tol = 1e-9)
-    
     β = zeros(nvar(M))
     llh_prev = llh_new = M.loss[1]
     for i in 1:max_iter
@@ -89,16 +84,13 @@ include("Cox/v3.jl")
 include("Cox/v4.jl")
 include("Cox/v5.jl")
 
-# Calculate the hessian matrix for the different Cox versions:
 
-# Hessian for CoxV0, CoxV1, CoxV4
-function getX(M::Union{CoxV0,CoxV1,CoxV4})
-    return M.X
-end
-function getX(M::CoxV5)
-    return M.Xᵗ'
-end
-function get_hessian(M::T, β::Vector{Float64}) where T <: Union{CoxV0, CoxV1, CoxV4, CoxV5}
+# Extract the matrix of X's : 
+getX(M::CoxMethod) = M.X
+getX(M::Union{CoxV3,CoxV5}) = M.Xᵗ'
+
+# Extract the hessian: 
+function get_hessian(M::CoxMethod, β)
     n, m = nobs(M), nvar(M)
     X = getX(M)
     η = X * β
@@ -132,54 +124,45 @@ function get_hessian(M::T, β::Vector{Float64}) where T <: Union{CoxV0, CoxV1, C
     end
     return H
 end
+get_hessian(M::CoxV2, β) = deriv_loss(β, M)[2]
+get_hessian(M::CoxV3, _) = M.H
+get_hessian(C::Cox) = get_hessian(C.M, C.β)
 
-function get_H(M::Union{CoxV0, CoxV1, CoxV4, CoxV5}, β::Vector{Float64})
-    return get_hessian(M, β)
-end
+# Compute Harrel's C-index: 
+harrells_c(C::Cox) = harrells_c(C.M.T, C.M.Δ, getX(C.M) * C.β)
 
-# For CoxV2 and CoxV3 we already use the hessian: 
-function get_H(M::CoxV2, β::Vector{Float64})
-    _, hess = deriv_loss(β, M)
-    return hess
-end
-
-function get_H(M::CoxV3, ::Vector{Float64})
-    return M.H 
-end
-
-function StatsBase.fit(::Type{T}, formula::FormulaTerm, df::DataFrame) where T<:Cox
-    CoxVersion = isconcretetype(T) ? T : CoxV3
+function StatsBase.fit(::Type{T}, formula::FormulaTerm, df::DataFrame) where T<:Union{CoxMethod,Cox}
+    CoxWorkerType = (isconcretetype(T) || T != Cox) ? T : CoxV3
     formula_applied = apply_schema(formula, schema(df))
-
     resp = modelcols(formula_applied.lhs, df)
     X = modelcols(formula_applied.rhs, df)
-    time = resp[:, 1]
-    status = Bool.(resp[:, 2])
-    model = CoxVersion(time, status, X)
+    Y, Δ = resp[:, 1], Bool.(resp[:, 2])
+    predictor_names = coefnames(formula_applied.rhs)
+    return Cox(CoxWorkerType(Y, Δ, X), Symbol.(predictor_names))
+end
 
-    # Get the return output:
-    # β coefficients:
-    beta = getβ(model)
-    # Standard Error:
-    H_matrice = get_H(model, beta)
-    vcov_matrix = inv(H_matrice)
-    se = sqrt.(diag(vcov_matrix))
-    #Z-Score:
-    z_scores = similar(beta, Float64)   
-    for i in eachindex(beta)
-        z_scores[i] = beta[i] / se[i]
-    end
-    #P-values: 
+function summary(C::Cox)
+    # Standard Error, z-scroe, p-values and c-index: 
+    se = sqrt.(diag(inv(get_hessian(C.M, C.β))))
+    z_scores = C.β ./ se
     p_values = 2 .* ccdf.(Normal(), abs.(z_scores))
 
-    predictor_names = coefnames(formula_applied.rhs)  
     return DataFrame(
-        Predictor = predictor_names,
-        β = beta,
-        SE = se,
-        P_Value = p_values,
-        z = z_scores 
+        predictor = C.pred_names,
+        β = C.β,
+        se = se,
+        p_values = p_values,
+        z_scores = z_scores 
     )
+end
+function _summary_line(C::Cox)
+    c_index = harrells_c(C)
+    return "Cox Model (n: $(nobs(C.M)), m: $(nvar(C.M)), method: $(typeof(C).parameters[1]), C-index: $(c_index))"
+end
+
+function Base.show(io::IO, C::Cox)
+    println(io, _summary_line(C))
+    Base.show(summary(C))
 end
 
 

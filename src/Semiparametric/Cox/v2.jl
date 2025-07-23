@@ -13,7 +13,7 @@ Fields:
 struct CoxV2<:CoxGrad
     X::Matrix{Float64}
     T::Vector{Float64}
-    Δ::Vector{Int64}
+    Δ::Vector{Bool}
     R::BitMatrix
     function CoxV2(T,Δ,X)
         o = sortperm(T)

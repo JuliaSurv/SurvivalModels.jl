@@ -65,7 +65,20 @@ L(\boldsymbol{\beta}, h_0(\cdot)) = \prod_{i=1}^n \left( h_0(t_i) \exp(\mathbf{X
 ### 4. The Partial-Likelihood Function
 Since the baseline hazard function $h_0(t)$ is unspecified, a standard likelihood function cannot be formed directly. Instead, Cox introduced the concept of a partial likelihood. This approach focuses on the order of events rather than their exact timings, factoring out the unknown $h_0(t)$.
 
-For each distinct observed event time ``t_(j)``, we consider the set of individuals who are "at risk" of experiencing the event just before ``t_(j)``. This is called the risk set, ``R(t_(j))``. The partial likelihood is constructed by considering the probability that the specific individual(s) who experienced the event at ``t_(j)`` were the ones to fail, given that some event occurred among the individuals in ``R(t_(j))``.
+For each distinct observed event time ``t_(j)``, we consider the set of individuals who are "at risk" of experiencing the event just before ``t_(j)``. This is called the risk set, ``R(t_(j))``. The partial likelihood is constructed by considering the probability that the specific individual(s) who experienced the event at ``t_(j)`` were the ones to fail, given that some event occurred among the individuals in ``R(t_(j))``. We can write this as follows: ``P(\text{Individual } i \text{ fails at } t \mid \text{An event occurs in } R(t) \text{ at } t)``. Using the defintion of the conditional probability:
+
+```math
+P(\text{Individual } i \text{ fails at } t \mid \text{An event occurs in } R(t) \text{ at } t) = \frac{P(\text{Individual } i \text{ fails at } t)}{\sum_{l \in R(t)} P(\text{Individual } l \text{ fails at } t)}
+```
+By substituting the hazard function and canceling out ``h_0(t)``and ``dt``:
+
+```math
+\frac{h_i(t)dt}{\sum_{l \in R(t)} h_l(t)dt} = \frac{h_0(t)\exp(\mathbf{X}_i^T\mathbf{\beta})dt}{\sum_{l \in R(t)} h_0(t)\exp(\mathbf{X}_l^T\mathbf{\beta})dt}
+
+= \frac{\exp(\mathbf{X}_i^T\mathbf{\beta})}{\sum_{l \in R(t)} \exp(\mathbf{X}_l^T\mathbf{\beta})}
+```
+To have the partial likelihood, we will multiply the conditional probabilities for each time. 
+For tied events, we used the Breslow approximation which says as follows:  when ``\Delta j``​ individuals experience the event at the exact same time ``t(j)``​, the​ individuals are treated as if they failed simultaneously.
 
 The **partial-likelihood function** for the Cox model, accounting for tied event times using Breslow's approximation, is given by:
 
@@ -202,7 +215,7 @@ model_colon = fit(Cox, @formula(Surv(Time, Status) ~ Age + Rx), colon)
 The outputed dataframe contains columns with respectively the name of the predictor, the obtained coefficients, its standard error, the associated p-value and the test statistic z as just described. 
 
 ```@docs
-Cox
+CoxMethod
 ```
 
 
@@ -295,7 +308,7 @@ using SurvivalModels: getβ, CoxV0, CoxV1, CoxV2, CoxV3, CoxV4, CoxV5
 We add specific code to compare with `Survival.jl` and also `R::survival::coxph()`:
 
 ```@example 1
-struct CoxVJ
+struct CoxVJ<:SurvivalModels.CoxMethod
     T::Vector{Float64}
     Δ::Vector{Bool}
     X::Matrix{Float64}
@@ -312,7 +325,7 @@ R"""
 library(survival)
 """
 
-struct CoxVR
+struct CoxVR<:SurvivalModels.CoxMethod
     df::DataFrame
     function CoxVR(T,Δ,X)
         df = DataFrame(X,:auto)
@@ -499,6 +512,28 @@ end
 
 beta_wrt_truth(df)
 ```
+
+
+## Model Evaluation: Harrell's Concordance Index (C-index)
+
+A key metric for assessing the predictive discrimination of a Cox model is **Harrell's concordance index (C-index)**.  
+The C-index measures the proportion of all usable patient pairs in which the predictions and outcomes are concordant: it is the probability that, for a randomly chosen pair of comparable subjects, the subject with the higher predicted risk actually experiences the event before the other. Tied risk scores count as half-concordant.
+
+```@docs
+SurvivalModels.harrells_c
+```
+
+The C-index ranges from 0.5 (no better than random) to 1.0 (perfect discrimination). It is outputed by the show function, and can be queried seprately too: 
+
+You can compute the C-index for a fitted Cox model using:
+
+```@example 2
+model = fit(Cox, @formula(Surv(Time, Status) ~ Age + Rx), colon)
+cindex = SurvivalModels.harrells_c(model)
+model
+```
+
+A higher C-index indicates better predictive discrimination.
 
 
 ```@bibliography

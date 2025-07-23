@@ -6,6 +6,7 @@ using Optimization, LinearAlgebra, Optim, ForwardDiff, StatsBase, Random, Distri
 using StatsBase: fit
 using SurvivalBase: Surv, Strata
 
+include("utils.jl")
 include("NonParametric/KaplanMeier.jl")
 include("NonParametric/LogRankTest.jl")
 include("Semiparametric/Cox.jl")
