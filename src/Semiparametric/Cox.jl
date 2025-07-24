@@ -37,8 +37,9 @@ struct Cox{CM}
     M::CM
     β::Vector{Float64}
     pred_names::Vector{Symbol}
-    function Cox(obj::CM, names) where {CM <: CoxMethod}
-        new{CM}(obj, getβ(obj), names)
+    pred_types::Vector{Symbol}
+    function Cox(obj::CM, names, types) where {CM <: CoxMethod}
+        new{CM}(obj, getβ(obj), names, types)
     end
 end
 
@@ -135,9 +136,17 @@ function baseline_hazard(C::Cox; centered::Bool = false)
     X = getX(C.M)
     η = X * C.β # (LP indv)
     R = exp.(η)
+    d = nvar(C.M)
 
     if centered
-        mean_X = mean(X, dims = 1)
+        mean_X = zeros(1, d)
+        for i in 1:d
+            if C.pred_types[i] == :categorical
+                mean_X[1,i] = mode(X[:,i])
+            else
+                mean_X[1,i] = mean(X[:,i])
+            end
+        end
         LP_sample = mean_X * C.β
         LP_c = η .- LP_sample[1]
         R = exp.(LP_c)
@@ -173,7 +182,9 @@ function StatsBase.fit(::Type{T}, formula::FormulaTerm, df::DataFrame) where T<:
     X = modelcols(formula_applied.rhs, df)
     Y, Δ = resp[:, 1], Bool.(resp[:, 2])
     predictor_names = coefnames(formula_applied.rhs)
-    return Cox(CoxWorkerType(Y, Δ, X), Symbol.(predictor_names))
+    catego = typeof.(formula_applied.rhs.terms) .<: CategoricalTerm
+    catego = [c ? :categorical : :continuous for c in catego]
+    return Cox(CoxWorkerType(Y, Δ, X), Symbol.(predictor_names), catego)
 end
 
 function summary(C::Cox)
