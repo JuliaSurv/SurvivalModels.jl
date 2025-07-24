@@ -49,8 +49,8 @@ age = [57, 52, 48, 42, 39, 31, 26, 22]
 df = DataFrame(time = time, status = status, sex = sex, age = age)
 
 model = fit(Cox, @formula(Surv(time, status) ~ sex + age), df)
-result_false = baseline_hazard(model_fitted, centered = false)
-result_true = baseline_hazard(model_fitted, centered = true)
+result_false = baseline_hazard(model, centered = false)
+result_true = baseline_hazard(model, centered = true)
 
 ```
 
