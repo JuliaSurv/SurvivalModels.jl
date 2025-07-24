@@ -131,6 +131,41 @@ get_hessian(C::Cox) = get_hessian(C.M, C.β)
 # Compute Harrel's C-index: 
 harrells_c(C::Cox) = harrells_c(C.M.T, C.M.Δ, getX(C.M) * C.β)
 
+function baseline_hazard(C::Cox; centered::Bool = false)
+    X = getX(C.M)
+    η = X * C.β # (LP indv)
+    R = exp.(η)
+
+    if centered
+        mean_X = mean(X, dims = 1)
+        LP_sample = mean_X * C.β
+        LP_c = η .- LP_sample[1]
+        R = exp.(LP_c)
+    end
+
+    t_j = sort(unique(C.M.T))
+
+    H0 = 0.0 
+    time = Float64[]
+    hazard = Float64[]
+
+    for j in t_j
+        d_j = length(findall((C.M.T .== j) .& (C.M.Δ .== true)))
+        R_j = findall(C.M.T .>= j)
+        sum_den = sum(R[R_j])
+    
+        if d_j > 0 && sum_den > 0
+            H_0 = d_j / sum_den
+            H0 += H_0 
+        end
+        
+        push!(time, j)
+        push!(hazard, H0)
+    end
+
+    return DataFrame(time = time, hazard = hazard)
+end
+
 function StatsBase.fit(::Type{T}, formula::FormulaTerm, df::DataFrame) where T<:Union{CoxMethod,Cox}
     CoxWorkerType = (isconcretetype(T) || T != Cox) ? T : CoxV3
     formula_applied = apply_schema(formula, schema(df))
@@ -164,5 +199,3 @@ function Base.show(io::IO, C::Cox)
     println(io, _summary_line(C))
     Base.show(summary(C))
 end
-
-

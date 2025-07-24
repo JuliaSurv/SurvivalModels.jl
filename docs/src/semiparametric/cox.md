@@ -23,6 +23,38 @@ where:
 
 The term ``exp(\mathbf{X}^T\mathbf{\beta})`` is often called the hazard ratio.
 
+### The Baseline Hazard Function
+
+How we saw before, ``h_0(t)`` is the **baseline hazard function**. This is the hazard for when all the covariates are zero. The Cox model does not estimate it parametrically.
+
+For predictions, we use the **cumulative baseline hazard function**: ``H_0(t) = \int_0^t h_0(u) du ``. It is estimated using the Breslow estimator : 
+
+```math
+\tilde{H}_0(t) = \sum_{t_i \le t} \frac{d_i}{\sum e^{(X\beta)}}
+```
+
+where:
+
+- ``d_i`` is the number of events that occur at time ``t``
+
+
+try the code:
+
+```@ exemple 3
+
+time = [1.0, 3.0, 5.0, 6.0, 2.0, 7.0, 9.0, 11.0] 
+status = [true, false, true, true, true, false, true, true] 
+sex = [1, 1, 1, 1, 0, 0, 0, 0]
+age = [57, 52, 48, 42, 39, 31, 26, 22]
+df = DataFrame(time = time, status = status, sex = sex, age = age)
+
+model = fit(Cox, @formula(Surv(time, status) ~ sex + age), df)
+result_false = baseline_hazard(model_fitted, centered = false)
+result_true = baseline_hazard(model_fitted, centered = true)
+
+```
+
+
 ### 2. The Survival Function
 
 The **survival function**, $S(t)$, which represents the probability that an individual survives beyond time $t$.
@@ -435,14 +467,16 @@ end
 ```
 
 ```@example 1
-df = run_models()
-timing_graph(df)
+x=1
+# df = run_models()
+# timing_graph(df)
 ```
 
 We can the that CoxV3 is the fastest, while CoxV2 is the slowest. We will zoom on our implementation vs Survival.jl vs R::survival: 
 
 ```@example 1
-timing_graph(filter(r -> r.name ∈ ("V4", "V3", "VJ", "VR"), df))
+x=2
+# timing_graph(filter(r -> r.name ∈ ("V4", "V3", "VJ", "VR"), df))
 ```
 
 So we are about x10 faster than the reference implementation of R (and than the previous Julia versions) on this example. 
@@ -510,7 +544,7 @@ function beta_wrt_truth(df)
     return p1
 end   
 
-beta_wrt_truth(df)
+#beta_wrt_truth(df)
 ```
 
 
