@@ -136,140 +136,52 @@ get_hessian(C::Cox) = get_hessian(C.M, C.β)
 # Compute Harrel's C-index: 
 harrells_c(C::Cox) = harrells_c(C.M.T, C.M.Δ, getX(C.M) * C.β)
 
-
-
-
-
-
-
-
-
-
-function baseline_hazard(C::Cox; centered::Bool = false)
-    #X = get_og_X(C.M)
-    X = getX(C.M)
-    η = X * C.β # (LP indv)
-    R = exp.(η)
-    d = nvar(C.M)
-    
-    if centered
-        mean_X = zeros(1, d)
-        for i in 1:d
-            if C.pred_types[i] == :categorical
-                # mean_X[1,i] = mode(X[:,i])
-                mean_X[1,i] = 0.0
-            else
-                mean_X[1,i] = mean(X[:,i])
-            end
-        end
-        LP_sample = mean_X * C.β
-        LP_c = η .- LP_sample[1]
-        R = exp.(LP_c)
-    end
-
-    t_j = sort(unique(C.M.T))
-
-    H0 = 0.0 
-    time = Float64[]
-    hazard = Float64[]
-
-    for j in t_j
-        d_j = length(findall((C.M.T .== j) .& (C.M.Δ .== true)))
-        R_j = findall(C.M.T .>= j)
-        sum_den = sum(R[R_j])
-    
-        if d_j > 0 && sum_den > 0
-            H_0 = d_j / sum_den
-            H0 += H_0 
-        end
-        
-        push!(time, j)
-        push!(hazard, H0)
-    end
-
-    return DataFrame(time = time, hazard = hazard)
-end
-
-function predict_lp(C::Cox)
-    X = get_og_X(C.M)
+function predict_lp(C::Cox; centered::Bool=true, og::Bool=true)
+    X = og ? get_og_X(C.M) : getX(C.M)
     η = X * C.β 
+
+    centered || return η
+
     d = nvar(C.M) 
-
-    mean_X = zeros(1, d)
+    mX = zeros(1, d)
+    cat = C.pred_types .== :categorical
     for i in 1:d
-        if C.pred_types[i] == :categorical
-            mean_X[1,i] = 0.0 
-        else
-            mean_X[1,i] = mean(X[:,i])
-        end
+        mX[1,i] = cat[i] ? mode(sort(X[:,i])) : mean(X[:,i])
     end
-    LP_sample = (mean_X * C.β)[1]
-    
-    η = η .- LP_sample
-    
-    return η
+    return η .- (mX * C.β)[1]
 end
-
-
-function predict_expected(C::Cox)
-    X = getX(C.M)
-    η = X * C.β # (LP indv)
+function baseline_hazard(C::Cox; centered::Bool = false, og::Bool=false)
+    η = predict_lp(C, centered = centered, og = og)
     R = exp.(η)
-    d = nvar(C.M)
-    
-
-    mean_X = zeros(1, d)
-    for i in 1:d
-        if C.pred_types[i] == :categorical
-            # mean_X[1,i] = mode(X[:,i])
-            mean_X[1,i] = 0.0
-        else
-            mean_X[1,i] = mean(X[:,i])
-        end
-    end
-    LP_sample = mean_X * C.β
-    LP_c = η .- LP_sample[1]
-    R = exp.(LP_c)
-
     t_j = sort(unique(C.M.T))
-
     H0 = 0.0 
-    hazard = Float64[]
-
-    for j in t_j
-        d_j = length(findall((C.M.T .== j) .& (C.M.Δ .== true)))
-        R_j = findall(C.M.T .>= j)
+    hazard = zero(t_j)
+    for (j, tⱼ) in enumerate(t_j)
+        d_j = length(findall((C.M.T .== tⱼ) .& (C.M.Δ .== true)))
+        R_j = findall(C.M.T .>= tⱼ)
         sum_den = sum(R[R_j])
     
         if d_j > 0 && sum_den > 0
             H_0 = d_j / sum_den
             H0 += H_0 
         end
-        
-        push!(hazard, H0)
+        hazard[j] = H0
     end
-
-    return hazard .* predict_risk(C)
+    return hazard
 end
-
-function predict_terms(C::Cox)
-    X = get_og_X(C.M)
+function predict_terms(C::Cox, og=true)
+    X = og ? get_og_X(C.M) : getX(C.M)
     β = C.β          
     d = nvar(C.M) 
 
-    res = Matrix{Float64}(undef, nobs(C.M), d)
-
+    rez = X .* β'
+    cat = C.pred_types .== :categorical
     for i in 1:d
-        terme1 = X[:, i] .*  β[i]
-        if C.pred_types[i] == :categorical
-            terme2 = 0.0
-        else
-            terme2 = mean(X[:,i]) * β[i]
-        end
-        res[:, i] = terme1 .- terme2
+        rez[:,i] .-= (cat[i] ? mode(sort(X[:,i])) : mean(X[:,i])) * β[i]
     end
-    return res
+    return rez
 end
+predict_expected(C::Cox) = baseline_hazard(C, centered=true) .* exp.(predict_lp(C))
 predict_survival(C::Cox) = exp.(-predict_expected(C))
 predict_risk(C::Cox; type = :risk) = exp.(predict_lp(C))
 function predict(C::Cox, type::Symbol=:lp)
