@@ -31,6 +31,7 @@ struct CoxV5 <: CoxLLH
     r::Vector{Float64}        # shape: (n)
     R::Vector{UnitRange{Int64}}
     B::Vector{Float64}
+    o::Vector{Int64}
     function CoxV5(T, Δ, X)
         o = reverse(sortperm(T))
         n, m = size(X)
@@ -93,7 +94,7 @@ struct CoxV5 <: CoxLLH
             end
             B[l] = Bₗ
         end
-        new(Xoᵗ, sX, To, Δo, loss, G, S₁, μ, η, r, R, B)
+        new(Xoᵗ, sX, To, Δo, loss, G, S₁, μ, η, r, R, B, o)
     end
 end 
 nobs(M::CoxV5) = size(M.Xᵗ,2) # X is stored transposed 

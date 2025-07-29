@@ -24,6 +24,8 @@ ovarian.FUStat = Bool.(ovarian.FUStat) (Status column needs to be Bool type)
 model = fit(Cox, @formula(Surv(FUTime, FUStat) ~ Age + ECOG_PS), ovarian)
 ```
 
+We need to add details about the different prediction types here. 
+
 Types: 
 - Cox : the base abstract type
 - CoxGrad<:Cox : abstract type for Cox models that are solved using gradient-based optimization
@@ -43,8 +45,6 @@ struct Cox{CM}
     end
 end
 
-nobs(M::CoxMethod) = size(M.X,1) # Default to X being (n,m)
-nvar(M::CoxMethod) = size(M.X,2)
 function loss(beta, M::CoxMethod)
     η = M.X*beta
     return dot(M.Δ, log.((M.T .<= M.T') * exp.(η)) .- η)
@@ -89,6 +89,10 @@ include("Cox/v5.jl")
 # Extract the matrix of X's : 
 getX(M::CoxMethod) = M.X
 getX(M::Union{CoxV3,CoxV5}) = M.Xᵗ'
+nobs(M::CoxMethod) = size(getX(M),1) # Default to X being (n,m)
+nvar(M::CoxMethod) = size(getX(M),2)
+get_perm(M::CoxMethod) = M.o
+get_og_X(M::CoxMethod) = getX(M)[sortperm(get_perm(M)), :]
 
 # Extract the hessian: 
 function get_hessian(M::CoxMethod, β)
@@ -132,9 +136,14 @@ get_hessian(C::Cox) = get_hessian(C.M, C.β)
 # Compute Harrel's C-index: 
 harrells_c(C::Cox) = harrells_c(C.M.T, C.M.Δ, getX(C.M) * C.β)
 
-function get_og_X(M::CoxV3)
-    return M.X_og
-end
+
+
+
+
+
+
+
+
 
 function baseline_hazard(C::Cox; centered::Bool = false)
     #X = get_og_X(C.M)
@@ -181,7 +190,7 @@ function baseline_hazard(C::Cox; centered::Bool = false)
     return DataFrame(time = time, hazard = hazard)
 end
 
-function predict_lp(C::Cox; type::Symbol= :lp)
+function predict_lp(C::Cox)
     X = get_og_X(C.M)
     η = X * C.β 
     d = nvar(C.M) 
@@ -201,11 +210,8 @@ function predict_lp(C::Cox; type::Symbol= :lp)
     return η
 end
 
-function predict_risk(C::Cox; type = :risk)
-    return exp.(predict_lp(C))
-end 
 
-function predict_expected(C::Cox; type = :expected)
+function predict_expected(C::Cox)
     X = getX(C.M)
     η = X * C.β # (LP indv)
     R = exp.(η)
@@ -246,7 +252,7 @@ function predict_expected(C::Cox; type = :expected)
     return hazard .* predict_risk(C)
 end
 
-function predict_terms(C::Cox; type = :terms)
+function predict_terms(C::Cox)
     X = get_og_X(C.M)
     β = C.β          
     d = nvar(C.M) 
@@ -264,10 +270,15 @@ function predict_terms(C::Cox; type = :terms)
     end
     return res
 end
-
-
-function predict_survival(C::Cox; type = :survial)
-    return exp.(-predict_expected(C))
+predict_survival(C::Cox) = exp.(-predict_expected(C))
+predict_risk(C::Cox; type = :risk) = exp.(predict_lp(C))
+function predict(C::Cox, type::Symbol=:lp)
+    type==:lp && return predict_lp(C)
+    type==:risk && return predict_risk(C)
+    type==:expected && return predict_expected(C)
+    type==:terms && return predict_terms(C)
+    type==:survival && return predict_survival(C)
+    error("The prediction you want was not understood. Please pass a `type` parameter among (:lp, :risk, :expected, :terms, :survival). See `?Cox` for details.")
 end
 
 function StatsBase.fit(::Type{T}, formula::FormulaTerm, df::DataFrame) where T<:Union{CoxMethod,Cox}

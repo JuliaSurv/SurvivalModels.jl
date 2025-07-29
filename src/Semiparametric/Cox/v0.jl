@@ -14,9 +14,10 @@ struct CoxV0 <: CoxMethod
     X::Matrix{Float64}
     T::Vector{Float64}
     Δ::Vector{Bool}
+    o::Vector{Int64}
     function CoxV0(T,Δ,X)
         o = sortperm(T)
-        new(X[o,:],T[o],Δ[o])
+        new(X[o,:],T[o],Δ[o], o)
     end
 end
 
