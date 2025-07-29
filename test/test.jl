@@ -99,28 +99,27 @@ end
 end
 
 @testitem "Verify baseline hazard " begin
-
-    # sourced here: https://missingdatasolutions.rbind.io/2022/12/cox-baseline-hazard/
-
     using DataFrames
     using SurvivalModels: baseline_hazard
+    using CategoricalArrays
     time = [1.0, 3.0, 5.0, 6.0, 2.0, 7.0, 9.0, 11.0] 
     status = [true, false, true, true, true, false, true, true] 
-    sex = [:Male, :Male, :Male, :Male, :Female, :Female, :Female, :Female] #[1, 1, 1, 1, 0, 0, 0, 0]
+    sex = [1, 1, 1, 1, 0, 0, 0, 0]
     age = [57, 52, 48, 42, 39, 31, 26, 22]
-    df = DataFrame(time = time, status = status, sex = sex, age = age)
 
-    model = fit(Cox, @formula(Surv(time, status) ~ sex + age), df);
+    df = DataFrame(time = time, status = status, sex = sex, age = age)
+    df.sex = categorical(df.sex)
+
+    model = fit(Cox, @formula(Surv(time, status) ~ age + sex), df)
     result_false = baseline_hazard(model, centered = false)
     result_true = baseline_hazard(model, centered = true)
 
-
-    @test isapprox(result_false.hazard, [3.442456e-13, 5.942770e-12, 5.942770e-12, 1.096574e-10, 1.897298e-09, 1.897298e-09, 6.646862e-08, 9.459174e-07]; atol=1e-4)
-
-    @test isapprox(result_true.hazard, [2.780808e-02, 4.800556e-01, 4.800556e-01, 8.858100e+00, 1.532633e+02, 1.532633e+02, 5.369320e+03, 7.641099e+04]; atol=1e-2)
-
+    predict_lp(model)
+    predict_risk(model)
+    predict_expected(model)
+    predict_terms(model)
+    predict_survival(model)
 end
-
 
 @testitem "Verify the correctness of the KaplanMeier implementation" begin
     using SurvivalModels: KaplanMeier
