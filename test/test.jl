@@ -136,11 +136,16 @@ end
                                         -8.6357545  0.000000
                                         -11.1710219  0.000000] rtol=1e-2
 
+        # These two broken tests corresponds to values really outputted by R. 
+        @test_broken predict(model, :expected) ≈ [0.9385114, 0.6811525, 0.9959573, 0.3843788, 0.3230369, 0.6475801, 0.9538031, 1.0755799] rtol=1e-2
+        @test_broken predict(model, :survival) ≈ [0.3912098, 0.5060335, 0.3693697, 0.6808734, 0.7239472, 0.5233106, 0.3852730, 0.3410999] rtol=1e-2
 
-        @test_broken predict(model, :expected) ≈ [0.9385114, 0.6811525, 0.9959573, 0.3843788, 0.3230369, 0.6475801, 0.9538031, 1.0755799] rtol=1e-2 # this one is falling.     
+        # While these two working ones corresponds to the explanations that are on the website: 
+        @test predict(model, :expected) ≈ [0.93851138, 0.68115250, 0.05397488, 0.02221579, 103.13326837, 0.64758014, 0.95380312, 1.07557986] rtol=1e-2
+        @test predict(model, :survival) ≈ [3.912098e-01, 5.060335e-01, 9.474559e-01, 9.780292e-01, 1.621028e-45, 5.233106e-01, 3.852730e-01, 3.410999e-01] rtol=1e-2
 
+        # Which ones hsould we keep ? can we reproduce (with e.g. another symbol like :expected2 and :survival2) the number given by R ? 
 
-        @test_broken predict(model, :survival) ≈ [0.3912098, 0.5060335, 0.3693697, 0.6808734, 0.7239472, 0.5233106, 0.3852730, 0.3410999] rtol=1e-2 # this one is wrong too. 
     end
 end
 
