@@ -132,17 +132,23 @@ get_hessian(C::Cox) = get_hessian(C.M, C.β)
 # Compute Harrel's C-index: 
 harrells_c(C::Cox) = harrells_c(C.M.T, C.M.Δ, getX(C.M) * C.β)
 
+function get_og_X(M::CoxV3)
+    return M.X_og
+end
+
 function baseline_hazard(C::Cox; centered::Bool = false)
+    #X = get_og_X(C.M)
     X = getX(C.M)
     η = X * C.β # (LP indv)
     R = exp.(η)
     d = nvar(C.M)
-
+    
     if centered
         mean_X = zeros(1, d)
         for i in 1:d
             if C.pred_types[i] == :categorical
-                mean_X[1,i] = mode(X[:,i])
+                # mean_X[1,i] = mode(X[:,i])
+                mean_X[1,i] = 0.0
             else
                 mean_X[1,i] = mean(X[:,i])
             end
@@ -173,6 +179,95 @@ function baseline_hazard(C::Cox; centered::Bool = false)
     end
 
     return DataFrame(time = time, hazard = hazard)
+end
+
+function predict_lp(C::Cox; type::Symbol= :lp)
+    X = get_og_X(C.M)
+    η = X * C.β 
+    d = nvar(C.M) 
+
+    mean_X = zeros(1, d)
+    for i in 1:d
+        if C.pred_types[i] == :categorical
+            mean_X[1,i] = 0.0 
+        else
+            mean_X[1,i] = mean(X[:,i])
+        end
+    end
+    LP_sample = (mean_X * C.β)[1]
+    
+    η = η .- LP_sample
+    
+    return η
+end
+
+function predict_risk(C::Cox; type = :risk)
+    return exp.(predict_lp(C))
+end 
+
+function predict_expected(C::Cox; type = :expected)
+    X = getX(C.M)
+    η = X * C.β # (LP indv)
+    R = exp.(η)
+    d = nvar(C.M)
+    
+
+    mean_X = zeros(1, d)
+    for i in 1:d
+        if C.pred_types[i] == :categorical
+            # mean_X[1,i] = mode(X[:,i])
+            mean_X[1,i] = 0.0
+        else
+            mean_X[1,i] = mean(X[:,i])
+        end
+    end
+    LP_sample = mean_X * C.β
+    LP_c = η .- LP_sample[1]
+    R = exp.(LP_c)
+
+    t_j = sort(unique(C.M.T))
+
+    H0 = 0.0 
+    hazard = Float64[]
+
+    for j in t_j
+        d_j = length(findall((C.M.T .== j) .& (C.M.Δ .== true)))
+        R_j = findall(C.M.T .>= j)
+        sum_den = sum(R[R_j])
+    
+        if d_j > 0 && sum_den > 0
+            H_0 = d_j / sum_den
+            H0 += H_0 
+        end
+        
+        push!(hazard, H0)
+    end
+
+    return hazard .* predict_risk(C)
+end
+
+function predict_terms(C::Cox; type = :terms)
+    X = get_og_X(C.M)
+    β = C.β          
+    d = nvar(C.M) 
+
+    res = Matrix{Float64}(undef, nobs(C.M), d)
+
+    for i in 1:d
+        terme1 = X[:, i] .*  β[i]
+        if C.pred_types[i] == :categorical
+            terme2 = 0.0
+        else
+            terme2 = mean(X[:,i]) * β[i]
+        end
+        res[:, i] = terme1 .- terme2
+    end
+    return res
+end
+
+
+function predict_survival(C::Cox; type = :survial)
+    return exp.(-predict_expected(C))
 end
 
 function StatsBase.fit(::Type{T}, formula::FormulaTerm, df::DataFrame) where T<:Union{CoxMethod,Cox}

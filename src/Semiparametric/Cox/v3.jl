@@ -36,7 +36,17 @@ struct CoxV3 <: CoxLLH
     η::Vector{Float64}        # shape: (n)
     r::Vector{Float64}        # shape: (n)
     R::Vector{UnitRange{Int64}}
+
+    X_og::Matrix{Float64}  
+    T_og::Vector{Float64}     
+    Δ_og::Vector{Bool}
+
     function CoxV3(T, Δ, X)
+
+        X_og = X
+        T_og = T
+        Δ_og = Δ
+        
         o = reverse(sortperm(T))
         n, m = size(X)
         sX = X' * Δ
@@ -61,7 +71,7 @@ struct CoxV3 <: CoxLLH
             end
             push!(R, j₀:(j-1))
         end
-        new(Xoᵗ, sX, To, Δo, loss, G, H, S₁, S₂, μ, η, r, R)
+        new(Xoᵗ, sX, To, Δo, loss, G, H, S₁, S₂, μ, η, r, R, X_og, T_og, Δ_og)
     end
 end 
 nobs(M::CoxV3) = size(M.Xᵗ,2) # X is stored transposed 
