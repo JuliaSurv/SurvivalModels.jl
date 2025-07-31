@@ -259,7 +259,7 @@ If you want to center predictions (e.g., for survival curves), you can use the `
 The following example is drawn from [this article](https://missingdatasolutions.rbind.io/2022/12/cox-baseline-hazard/). 
 
 ```@example 5
-    using DataFrames
+    using DataFrames, SurvivalModels
 
     df = DataFrame(
         time = [1.0, 3.0, 5.0, 6.0, 2.0, 7.0, 9.0, 11.0],
