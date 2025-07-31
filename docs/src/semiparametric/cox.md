@@ -267,7 +267,7 @@ CoxDefault
 
 ### V4: Majoration of the Hessian matrix by a universal bound.
 
-Coding the Hessian Matrix for the CoxHessian was very impratical, so for this version we tried a different approach: 
+Coding the Hessian Matrix for the CoxHessian was very impractical, so for this version we tried a different approach: 
 
 The Hessian Matrix simplifies for the diagonal terms as folllows: 
 
@@ -361,7 +361,7 @@ Then, we will simulate our data and then run our models:
 # Label => (constructor, plotting color)
 
 const design = Dict(
-"CoxNM,"=> (CoxNM, :blue),
+"CoxNM"=> (CoxNM, :blue),
 "CoxOptim"=> (CoxOptim, :orange),
 "CoxHessian"=> (CoxHessian, :brown),
 "CoxDefault"=> (CoxDefault, :purple),

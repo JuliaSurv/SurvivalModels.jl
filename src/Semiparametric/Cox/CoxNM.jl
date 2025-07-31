@@ -1,5 +1,5 @@
 """
-    CoxVO(T, Δ, X)
+    CoxNM(T, Δ, X)
     fit(CoxNM, @formula(Surv(T,Δ)~X), data = ...)
 
 An implementation of the Cox proportional hazards model that minimizes the negative partial log-likelihood function (`cox_nllh`).
