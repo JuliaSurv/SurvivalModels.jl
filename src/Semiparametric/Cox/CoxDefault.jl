@@ -1,6 +1,6 @@
 """
-    CoxV3(T, Δ, X)
-    fit(CoxV3, @formula(Surv(T,Δ)~X), data = ...)
+    CoxDefault(T, Δ, X)
+    fit(CoxDefault, @formula(Surv(T,Δ)~X), data = ...)
     fit(Cox, @formula(Surv(T,Δ)~X), data = ...)
 
 The third implementation of the Cox proportional hazards model represents a highly optimized and significantly faster iteration compared to previous implementation, CoxV2.
@@ -22,7 +22,7 @@ Fields:
 - r::Vector{Float64}: ri = exp(ηi)
 - R::Vector{UnitRange{Int64}}: A vector of the risk ranges for each output time.
 """
-struct CoxV3 <: CoxLLH
+struct CoxDefault <: CoxLLH
     Xᵗ::Matrix{Float64}        # shape: (m, n)
     sX::Vector{Float64}       # shape: (m)
     T::Vector{Float64}        # shape: (n)
@@ -37,7 +37,7 @@ struct CoxV3 <: CoxLLH
     r::Vector{Float64}        # shape: (n)
     R::Vector{UnitRange{Int64}}
     o::Vector{Int64}
-    function CoxV3(T, Δ, X)
+    function CoxDefault(T, Δ, X)
         o = reverse(sortperm(T))
         n, m = size(X)
         sX = X' * Δ
@@ -65,7 +65,7 @@ struct CoxV3 <: CoxLLH
         new(Xoᵗ, sX, To, Δo, loss, G, H, S₁, S₂, μ, η, r, R, o)
     end
 end 
-function update!(β, M::CoxV3)
+function update!(β, M::CoxDefault)
     M.G .= M.sX
     fill!(M.H, 0)
     fill!(M.S₁, 0)

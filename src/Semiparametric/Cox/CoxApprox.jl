@@ -1,6 +1,6 @@
 """
-    CoxV4(T, Δ, X)
-    fit(CoxV4, @formula(Surv(T,Δ)~X), data = ...)
+    CoxApprox(T, Δ, X)
+    fit(CoxApprox, @formula(Surv(T,Δ)~X), data = ...)
 
 The fourth implementation of the Cox proportional hazards model uses Hessian approximation based on a pre-calculated estimation. This version was created for when it might be difficult to work with full Hessian , offering faster iterations by using a Hessian approximation.
 
@@ -17,7 +17,7 @@ Fields:
 - K::Vector{Int64}: Number of events at each unique observed event time
 - loss::Vector{Float64}: Stores the current negative partial log-likelihood value, used in CoxLLH getβ
 """
-struct CoxV4<:CoxLLH
+struct CoxApprox<:CoxLLH
     X::Matrix{Float64}
     T::Vector{Float64}
     Δ::Vector{Bool}
@@ -30,7 +30,7 @@ struct CoxV4<:CoxLLH
     K::Vector{Int64}
     loss::Vector{Float64}
     o::Vector{Int64}
-    function CoxV4(T,Δ,X)
+    function CoxApprox(T,Δ,X)
 
         # Allocate: 
         n,m = size(X)
@@ -106,7 +106,7 @@ function mkA!(A, C, K)
     # end 
     # return L
 end
-function update!(β, M::CoxV4)
+function update!(β, M::CoxApprox)
     mul!(M.η, M.X, β)    # O(nm)
     M.A .= exp.(M.η)     # O(n)
     L = mkA!(M.A, M.C, M.K)   # O(n)

@@ -3,7 +3,7 @@
       # Required packages
       using Distributions, Random
       using StableRNGs
-      using SurvivalModels: getβ, CoxV0, CoxV1, CoxV2, CoxV3, CoxV4, CoxV5
+      using SurvivalModels: getβ, CoxNM, CoxOptim, CoxHessian, CoxDefault, CoxApprox
       rng = StableRNG(123)
 
       # Sample size
@@ -62,7 +62,7 @@
 
 
       # Model fit
-      for M in (CoxV0, CoxV1, CoxV2, CoxV3, CoxV4, CoxV5)
+      for M in (CoxNM, CoxOptim, CoxHessian, CoxDefault, CoxApprox)
             β = getβ(M(simdat, status, des))
             @test β[1] ≈ -0.4926892848193542 atol=1e-2
             @test β[2] ≈ 0.6790626074990427 atol=1e-2
@@ -75,11 +75,11 @@ end
 
       # Required packages
       using Distributions, Random, RDatasets
-      using SurvivalModels: getβ, CoxV0, CoxV1, CoxV2, CoxV3, CoxV4, CoxV5
+      using SurvivalModels: getβ, CoxNM, CoxOptim, CoxHessian, CoxDefault, CoxApprox
 
       ovarian = dataset("survival","ovarian")
 
-      for M in (CoxV0, CoxV1, CoxV2, CoxV3, CoxV4, CoxV5)
+      for M in (CoxNM, CoxOptim, CoxHessian, CoxDefault, CoxApprox)
             β = fit(M, @formula(Surv(FUTime, FUStat) ~ Age + ECOG_PS), ovarian).β
             @test β[1] ≈ 0.16149 atol=1e-3
             @test β[2] ≈ 0.0187 atol=1e-3
@@ -90,7 +90,7 @@ end
       colon.Status = Bool.(colon.Status)
       model_colon = fit(Cox, @formula(Surv(Time, Status) ~ Age + Rx), colon)
 
-      for M in (CoxV0, CoxV1, CoxV2, CoxV3, CoxV4, CoxV5)
+      for M in (CoxNM, CoxOptim, CoxHessian, CoxDefault, CoxApprox)
             β = fit(M, @formula(Surv(Time, Status) ~ Age + Rx), colon).β
             @test β[1] ≈ -0.00205614 atol=1e-3
             @test β[2] ≈ -0.0200488	 atol=1e-3
@@ -103,7 +103,7 @@ end
     # This test is directly drawn from this web article : https://missingdatasolutions.rbind.io/2022/12/cox-baseline-hazard/
 
     using DataFrames
-    using SurvivalModels: baseline_hazard, predict, CoxV0, CoxV1, CoxV2, CoxV3, CoxV4, CoxV5
+    using SurvivalModels: baseline_hazard, predict, CoxNM, CoxOptim, CoxHessian, CoxDefault, CoxApprox
     time = [1.0, 3.0, 5.0, 6.0, 2.0, 7.0, 9.0, 11.0] 
     status = [true, false, true, true, true, false, true, true] 
     sex = Symbol.([1, 1, 1, 1, 0, 0, 0, 0])
@@ -113,12 +113,11 @@ end
 
     f = @formula(Surv(time, status) ~ age + sex)
     models = (
-        fit(CoxV0, f, df), 
-        fit(CoxV1, f, df), 
-        fit(CoxV2, f, df), 
-        fit(CoxV3, f, df), 
-        fit(CoxV4, f, df),
-        fit(CoxV5, f, df), 
+        fit(CoxNM, f, df), 
+        fit(CoxOptim, f, df), 
+        fit(CoxHessian, f, df), 
+        fit(CoxDefault, f, df), 
+        fit(CoxApprox, f, df),
     )
 
     for model in models

@@ -242,13 +242,13 @@ of the coefficients.
 ### V0: Derivative-Free Optimization with Nelder-Mead
 
 ```@docs
-CoxV0
+CoxNM
 ```
 
 ### V1: Implementation using the 'Optimization.jl' Julia package 
 
 ```@docs
-CoxV1
+CoxOptim
 ```
 
 ### V2: Implementation using the gradient and the Hessian matrix
@@ -256,18 +256,18 @@ CoxV1
 For this version the Hessian Matrix was directly implemented. Its complexity is O(n2m2) which makes it the slowest version.
 
 ```@docs
-CoxV2
+CoxHessian
 ```
 
 ### V3: Improved version of V2 (much faster) because non-allocative.
 
 ```@docs
-CoxV3
+CoxDefault
 ```
 
 ### V4: Majoration of the Hessian matrix by a universal bound.
 
-Coding the Hessian Matrix for the CoxV2 was very impratical, so for this version we tried a different approach: 
+Coding the Hessian Matrix for the CoxHessian was very impratical, so for this version we tried a different approach: 
 
 The Hessian Matrix simplifies for the diagonal terms as folllows: 
 
@@ -298,14 +298,9 @@ B_k = \sum_{i=1}^n \frac{1}{4} \Delta_i \left( \max_{j \in R_i} X_{jk} - \min_{j
 ```
 
 ```@docs
-CoxV4
+CoxApprox
 ```
 
-### V5
-
-```@docs
-CoxV5
-```
 
 ## Comparison of the different methods speed
 
@@ -316,7 +311,7 @@ We will start by coding our Julia and R structures:
 
 ```@example 1
 using SurvivalModels, Plots, Random, Distributions, StatsBase, LinearAlgebra, DataFrames, RCall, Survival
-using SurvivalModels: getβ, CoxV0, CoxV1, CoxV2, CoxV3, CoxV4, CoxV5
+using SurvivalModels: getβ, CoxNM, CoxOptim, CoxHessian, CoxDefault, CoxApprox
 ```
 
 We add specific code to compare with `Survival.jl` and also `R::survival::coxph()`:
@@ -366,12 +361,11 @@ Then, we will simulate our data and then run our models:
 # Label => (constructor, plotting color)
 
 const design = Dict(
-"V0"=> (CoxV0, :blue),
-"V1"=> (CoxV1, :orange),
-"V2"=> (CoxV2, :brown),
-"V3"=> (CoxV3, :purple),
-"V4"=> (CoxV4, :green),
-"V5"=> (CoxV5, :yellow),
+"CoxNM,"=> (CoxNM, :blue),
+"CoxOptim"=> (CoxOptim, :orange),
+"CoxHessian"=> (CoxHessian, :brown),
+"CoxDefault"=> (CoxDefault, :purple),
+"CoxApprox"=> (CoxApprox, :green),
 "VR"=> (CoxVR, :red),
 "VJ"=> (CoxVJ, :black)
 );
@@ -449,16 +443,14 @@ end
 ```
 
 ```@example 1
-x=1
-# df = run_models()
-# timing_graph(df)
+df = run_models()
+timing_graph(df)
 ```
 
-We can the that CoxV3 is the fastest, while CoxV2 is the slowest. We will zoom on our implementation vs Survival.jl vs R::survival: 
+We can the that CoxDefault is the fastest, while CoxHessian is the slowest. We will zoom on our implementation vs Survival.jl vs R::survival: 
 
 ```@example 1
-x=2
-# timing_graph(filter(r -> r.name ∈ ("V4", "V3", "VJ", "VR"), df))
+timing_graph(filter(r -> r.name ∈ ("V4", "V3", "VJ", "VR"), df))
 ```
 
 So we are about x10 faster than the reference implementation of R (and than the previous Julia versions) on this example. 
@@ -526,7 +518,7 @@ function beta_wrt_truth(df)
     return p1
 end   
 
-#beta_wrt_truth(df)
+beta_wrt_truth(df)
 ```
 
 

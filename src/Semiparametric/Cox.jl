@@ -2,7 +2,7 @@
     StatsBase.fit(Cox, @formula(Surv(T,Δ)~predictors), dataset)
 
 Arguments: 
-- T: The Cox model type to fit (CoxV3)
+- T: The Cox model type to fit (CoxDefault)
 - formula: A StatsModels.FormulaTerm specifying the survival model
 - df: A DataFrame containing the variables specified in the formula
 
@@ -78,17 +78,16 @@ function getβ(M::CoxLLH; max_iter = 10000, tol = 1e-9)
     return β
 end
 
-include("Cox/v0.jl")
-include("Cox/v1.jl")
-include("Cox/v2.jl")
-include("Cox/v3.jl")
-include("Cox/v4.jl")
-include("Cox/v5.jl")
+include("Cox/CoxNM.jl")
+include("Cox/coxOptim.jl")
+include("Cox/CoxHessian.jl")
+include("Cox/CoxDefault.jl")
+include("Cox/CoxApprox.jl")
 
 
 # Extract the matrix of X's : 
 getX(M::CoxMethod) = M.X
-getX(M::Union{CoxV3,CoxV5}) = M.Xᵗ'
+getX(M::CoxDefault) = M.Xᵗ'
 nobs(M::CoxMethod) = size(getX(M),1) # Default to X being (n,m)
 nvar(M::CoxMethod) = size(getX(M),2)
 get_perm(M::CoxMethod) = M.o
@@ -129,8 +128,8 @@ function get_hessian(M::CoxMethod, β)
     end
     return H
 end
-get_hessian(M::CoxV2, β) = deriv_loss(β, M)[2]
-get_hessian(M::CoxV3, _) = M.H
+get_hessian(M::CoxHessian, β) = deriv_loss(β, M)[2]
+get_hessian(M::CoxDefault, _) = M.H
 get_hessian(C::Cox) = get_hessian(C.M, C.β)
 
 # Compute Harrel's C-index: 
@@ -194,7 +193,7 @@ function predict(C::Cox, type::Symbol=:lp)
 end
 
 function StatsBase.fit(::Type{T}, formula::FormulaTerm, df::DataFrame) where T<:Union{CoxMethod,Cox}
-    CoxWorkerType = (isconcretetype(T) || T != Cox) ? T : CoxV3
+    CoxWorkerType = (isconcretetype(T) || T != Cox) ? T : CoxDefault
     formula_applied = apply_schema(formula, schema(df))
     resp = modelcols(formula_applied.lhs, df)
     X = modelcols(formula_applied.rhs, df)
