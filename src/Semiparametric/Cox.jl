@@ -184,7 +184,7 @@ end
 predict_expected(C::Cox) = baseline_hazard(C, centered=true) .* exp.(predict_lp(C))
 predict_survival(C::Cox) = exp.(-predict_expected(C))
 predict_risk(C::Cox; type = :risk) = exp.(predict_lp(C))
-function predict(C::Cox, type::Symbol=:lp)
+function StatsBase.predict(C::Cox, type::Symbol=:lp)
     type==:lp && return predict_lp(C)
     type==:risk && return predict_risk(C)
     type==:expected && return predict_expected(C)
