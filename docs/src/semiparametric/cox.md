@@ -233,6 +233,70 @@ CoxMethod
 ```
 
 
+### 12. Prediction Interface
+
+After fitting a Cox model, you can obtain various types of predictions using the `predict` function:
+
+```julia
+predict(model; type=:lp)        # Linear predictor (default)
+predict(model; type=:risk)      # Relative risk (exp(linear predictor))
+predict(model; type=:expected)  # Expected cumulative hazard
+predict(model; type=:survival)  # Survival probability
+predict(model; type=:terms)     # Contribution of each term (covariate) to the linear predictor
+```
+
+**Available types:**
+- `:lp` — Linear predictor (Xβ)
+- `:risk` — Relative risk, exp(Xβ)
+- `:expected` — Expected cumulative hazard for each subject
+- `:survival` — Survival probability for each subject
+- `:terms` — Covariate-wise contributions to the linear predictor
+
+If you want to center predictions (e.g., for survival curves), you can use the `centered` keyword argument.
+
+### Example: Prediction on New Data
+
+The following example is drawn from [this article](https://missingdatasolutions.rbind.io/2022/12/cox-baseline-hazard/). 
+
+```@example 5
+    using DataFrames
+
+    df = DataFrame(
+        time = [1.0, 3.0, 5.0, 6.0, 2.0, 7.0, 9.0, 11.0],
+        status = [true, false, true, true, true, false, true, true],
+        sex = [:male, :male, :male, :male, :female, :female, :female, :female],
+        age = [57, 52, 48, 42, 39, 31, 26, 22],
+    )
+    model = fit(Cox, @formula(Surv(time, status) ~ age + sex), df) 
+```
+
+You can extract the baseline haard, centered or not, with the following: 
+```@example 5
+    SurvivalModels.baseline_hazard(model, centered = false)
+```
+```@example 5
+    SurvivalModels.baseline_hazard(model, centered = true)
+```
+
+And then each of the prediction type can be accessed as follows: 
+
+```@example 5
+    predict(model, :lp)
+```
+```@example 5
+    predict(model, :risk)
+```
+```@example 5
+    predict(model, :terms)
+```
+```@example 5
+    predict(model, :expected) 
+```
+```@example 5
+    predict(model, :survival)
+```
+
+
 ## Different versions of the optimisation routine
 
 To implement the Cox proportional hazards model, different versions were coded, using different methods.
