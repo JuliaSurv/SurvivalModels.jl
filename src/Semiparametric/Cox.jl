@@ -2,7 +2,7 @@
     StatsBase.fit(Cox, @formula(Surv(T,Δ)~predictors), dataset)
 
 Arguments: 
-- T: The Cox model type to fit (CoxDefault)
+- Cox: The model to fit, e.g. Cox. Could be specified to any of `CoxNM, CoxOptim, CoxApprox` or `CoxDefault` if you want different sovers to be used, see their own documentations. Default is `CoxDefault`.
 - formula: A StatsModels.FormulaTerm specifying the survival model
 - df: A DataFrame containing the variables specified in the formula
 
@@ -79,7 +79,7 @@ function getβ(M::CoxLLH; max_iter = 10000, tol = 1e-9)
 end
 
 include("Cox/CoxNM.jl")
-include("Cox/coxOptim.jl")
+include("Cox/CoxOptim.jl")
 include("Cox/CoxHessian.jl")
 include("Cox/CoxDefault.jl")
 include("Cox/CoxApprox.jl")
