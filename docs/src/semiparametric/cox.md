@@ -496,7 +496,7 @@ function beta_correctness_graphs(df; ref="VJ")
     return p
 end
 
-#beta_correctness_graphs(df)
+beta_correctness_graphs(df)
 ```
 We will compare the diffferent models' coefficents values with the "right" beta value that we obtained while simulating our data.
 
