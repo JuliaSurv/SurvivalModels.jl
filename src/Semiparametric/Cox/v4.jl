@@ -29,6 +29,7 @@ struct CoxV4<:CoxLLH
     C::Vector{Float64}
     K::Vector{Int64}
     loss::Vector{Float64}
+    o::Vector{Int64}
     function CoxV4(T,Δ,X)
 
         # Allocate: 
@@ -80,7 +81,7 @@ struct CoxV4<:CoxLLH
         end
 
         # Instantiate: 
-        new(Xo, To, Δo, sX, G, η, A, B, C, K, [1.0])
+        new(Xo, To, Δo, sX, G, η, A, B, C, K, [1.0], o)
     end
 end
 

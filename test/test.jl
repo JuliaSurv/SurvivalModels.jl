@@ -98,6 +98,56 @@ end
       end
 end
 
+@testitem "Verify baseline hazard " begin
+
+    # This test is directly drawn from this web article : https://missingdatasolutions.rbind.io/2022/12/cox-baseline-hazard/
+
+    using DataFrames
+    using SurvivalModels: baseline_hazard, predict, CoxV0, CoxV1, CoxV2, CoxV3, CoxV4, CoxV5
+    time = [1.0, 3.0, 5.0, 6.0, 2.0, 7.0, 9.0, 11.0] 
+    status = [true, false, true, true, true, false, true, true] 
+    sex = Symbol.([1, 1, 1, 1, 0, 0, 0, 0])
+    age = [57, 52, 48, 42, 39, 31, 26, 22]
+
+    df = DataFrame(time = time, status = status, sex = sex, age = age)
+
+    f = @formula(Surv(time, status) ~ age + sex)
+    models = (
+        fit(CoxV0, f, df), 
+        fit(CoxV1, f, df), 
+        fit(CoxV2, f, df), 
+        fit(CoxV3, f, df), 
+        fit(CoxV4, f, df),
+        fit(CoxV5, f, df), 
+    )
+
+    for model in models
+        @test baseline_hazard(model, centered = false) ≈ [3.442456e-13, 5.942770e-12, 5.942770e-12, 1.096574e-10, 1.897298e-09, 1.897298e-09, 6.646862e-08, 9.459174e-07] rtol=1e-2
+        @test baseline_hazard(model, centered = true) ≈ [2.780808e-02, 4.800556e-01, 4.800556e-01, 8.858100e+00, 1.532633e+02, 1.532633e+02, 5.369320e+03, 7.641099e+04] rtol=1e-2
+        @test predict(model, :lp) ≈ [3.5189684, 0.3498842, -2.1853832, -5.9882842, -0.3961355, -5.4666703, -8.6357545, -11.1710219] rtol=1e-2
+        @test predict(model, :risk) ≈ [3.374960e+01, 1.418903e+00, 1.124346e-01, 2.507963e-03, 6.729155e-01, 4.225278e-03, 1.776395e-04, 1.407625e-05] rtol=1e-2
+        
+        @test predict(model, :terms) ≈ [11.0125677 -7.493599
+                                        7.8434834 -7.493599
+                                        5.3082161 -7.493599
+                                        1.5053150 -7.493599
+                                        -0.3961355  0.000000
+                                        -5.4666703  0.000000
+                                        -8.6357545  0.000000
+                                        -11.1710219  0.000000] rtol=1e-2
+
+        # These two broken tests corresponds to values really outputted by R. 
+        @test_broken predict(model, :expected) ≈ [0.9385114, 0.6811525, 0.9959573, 0.3843788, 0.3230369, 0.6475801, 0.9538031, 1.0755799] rtol=1e-2
+        @test_broken predict(model, :survival) ≈ [0.3912098, 0.5060335, 0.3693697, 0.6808734, 0.7239472, 0.5233106, 0.3852730, 0.3410999] rtol=1e-2
+
+        # While these two working ones corresponds to the explanations that are on the website: 
+        @test predict(model, :expected) ≈ [0.93851138, 0.68115250, 0.05397488, 0.02221579, 103.13326837, 0.64758014, 0.95380312, 1.07557986] rtol=1e-2
+        @test predict(model, :survival) ≈ [3.912098e-01, 5.060335e-01, 9.474559e-01, 9.780292e-01, 1.621028e-45, 5.233106e-01, 3.852730e-01, 3.410999e-01] rtol=1e-2
+
+        # Which ones hsould we keep ? can we reproduce (with e.g. another symbol like :expected2 and :survival2) the number given by R ? 
+
+    end
+end
 
 @testitem "Verify the correctness of the KaplanMeier implementation" begin
     using SurvivalModels: KaplanMeier

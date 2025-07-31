@@ -24,6 +24,8 @@ ovarian.FUStat = Bool.(ovarian.FUStat) (Status column needs to be Bool type)
 model = fit(Cox, @formula(Surv(FUTime, FUStat) ~ Age + ECOG_PS), ovarian)
 ```
 
+We need to add details about the different prediction types here. 
+
 Types: 
 - Cox : the base abstract type
 - CoxGrad<:Cox : abstract type for Cox models that are solved using gradient-based optimization
@@ -37,13 +39,12 @@ struct Cox{CM}
     M::CM
     β::Vector{Float64}
     pred_names::Vector{Symbol}
-    function Cox(obj::CM, names) where {CM <: CoxMethod}
-        new{CM}(obj, getβ(obj), names)
+    pred_types::Vector{Symbol}
+    function Cox(obj::CM, names, types) where {CM <: CoxMethod}
+        new{CM}(obj, getβ(obj), names, types)
     end
 end
 
-nobs(M::CoxMethod) = size(M.X,1) # Default to X being (n,m)
-nvar(M::CoxMethod) = size(M.X,2)
 function loss(beta, M::CoxMethod)
     η = M.X*beta
     return dot(M.Δ, log.((M.T .<= M.T') * exp.(η)) .- η)
@@ -88,6 +89,10 @@ include("Cox/v5.jl")
 # Extract the matrix of X's : 
 getX(M::CoxMethod) = M.X
 getX(M::Union{CoxV3,CoxV5}) = M.Xᵗ'
+nobs(M::CoxMethod) = size(getX(M),1) # Default to X being (n,m)
+nvar(M::CoxMethod) = size(getX(M),2)
+get_perm(M::CoxMethod) = M.o
+get_og_X(M::CoxMethod) = getX(M)[sortperm(get_perm(M)), :]
 
 # Extract the hessian: 
 function get_hessian(M::CoxMethod, β)
@@ -131,6 +136,63 @@ get_hessian(C::Cox) = get_hessian(C.M, C.β)
 # Compute Harrel's C-index: 
 harrells_c(C::Cox) = harrells_c(C.M.T, C.M.Δ, getX(C.M) * C.β)
 
+function predict_lp(C::Cox; centered::Bool=true, og::Bool=true)
+    X = og ? get_og_X(C.M) : getX(C.M)
+    η = X * C.β 
+
+    centered || return η
+
+    d = nvar(C.M) 
+    mX = zeros(1, d)
+    cat = C.pred_types .== :categorical
+    for i in 1:d
+        mX[1,i] = cat[i] ? mode(sort(X[:,i])) : mean(X[:,i])
+    end
+    return η .- (mX * C.β)[1]
+end
+function baseline_hazard(C::Cox; centered::Bool = false, og::Bool=false)
+    η = predict_lp(C, centered = centered, og = og)
+    R = exp.(η)
+    t_j = sort(unique(C.M.T))
+    H0 = 0.0 
+    hazard = zero(t_j)
+    for (j, tⱼ) in enumerate(t_j)
+        d_j = length(findall((C.M.T .== tⱼ) .& (C.M.Δ .== true)))
+        R_j = findall(C.M.T .>= tⱼ)
+        sum_den = sum(R[R_j])
+    
+        if d_j > 0 && sum_den > 0
+            H_0 = d_j / sum_den
+            H0 += H_0 
+        end
+        hazard[j] = H0
+    end
+    return hazard
+end
+function predict_terms(C::Cox, og=true)
+    X = og ? get_og_X(C.M) : getX(C.M)
+    β = C.β          
+    d = nvar(C.M) 
+
+    rez = X .* β'
+    cat = C.pred_types .== :categorical
+    for i in 1:d
+        rez[:,i] .-= (cat[i] ? mode(sort(X[:,i])) : mean(X[:,i])) * β[i]
+    end
+    return rez
+end
+predict_expected(C::Cox) = baseline_hazard(C, centered=true) .* exp.(predict_lp(C))
+predict_survival(C::Cox) = exp.(-predict_expected(C))
+predict_risk(C::Cox; type = :risk) = exp.(predict_lp(C))
+function predict(C::Cox, type::Symbol=:lp)
+    type==:lp && return predict_lp(C)
+    type==:risk && return predict_risk(C)
+    type==:expected && return predict_expected(C)
+    type==:terms && return predict_terms(C)
+    type==:survival && return predict_survival(C)
+    error("The prediction you want was not understood. Please pass a `type` parameter among (:lp, :risk, :expected, :terms, :survival). See `?Cox` for details.")
+end
+
 function StatsBase.fit(::Type{T}, formula::FormulaTerm, df::DataFrame) where T<:Union{CoxMethod,Cox}
     CoxWorkerType = (isconcretetype(T) || T != Cox) ? T : CoxV3
     formula_applied = apply_schema(formula, schema(df))
@@ -138,7 +200,9 @@ function StatsBase.fit(::Type{T}, formula::FormulaTerm, df::DataFrame) where T<:
     X = modelcols(formula_applied.rhs, df)
     Y, Δ = resp[:, 1], Bool.(resp[:, 2])
     predictor_names = coefnames(formula_applied.rhs)
-    return Cox(CoxWorkerType(Y, Δ, X), Symbol.(predictor_names))
+    catego = typeof.(formula_applied.rhs.terms) .<: CategoricalTerm
+    catego = [c ? :categorical : :continuous for c in catego]
+    return Cox(CoxWorkerType(Y, Δ, X), Symbol.(predictor_names), catego)
 end
 
 function summary(C::Cox)
@@ -164,5 +228,3 @@ function Base.show(io::IO, C::Cox)
     println(io, _summary_line(C))
     Base.show(summary(C))
 end
-
-

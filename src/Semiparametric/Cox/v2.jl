@@ -15,10 +15,11 @@ struct CoxV2<:CoxGrad
     T::Vector{Float64}
     Δ::Vector{Bool}
     R::BitMatrix
+    o::Vector{Int64}
     function CoxV2(T,Δ,X)
         o = sortperm(T)
         R = T .<= T'
-        new(X[o,:],T[o],Δ[o],R[o,o])
+        new(X[o,:],T[o],Δ[o],R[o,o], o)
     end
 end
 
