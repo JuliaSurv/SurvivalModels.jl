@@ -1,6 +1,6 @@
 """
-    CoxV2(T, Δ, X)
-    fit(CoxV2, @formula(Surv(T,Δ)~X), data = ...)
+    CoxHessian(T, Δ, X)
+    fit(CoxHessian, @formula(Surv(T,Δ)~X), data = ...)
 
 The second implementation of the Cox proportional hazards model uses a Newton-Raphson-like iterative update that directly calculates and utilizes the gradient and Hessian matrix. This version is updating coefficients via the update! function.
 
@@ -10,20 +10,20 @@ Fields:
 - Δ::Vector{Int64}: The event indicator vector (true for event, false for censoring)
 - R::BitMatrix: A boolean risk matrix, where 'R[i,j]' is 'true' if individual 'j' is at risk at time 'T[i]'
 """
-struct CoxV2<:CoxGrad
+struct CoxHessian<:CoxGrad
     X::Matrix{Float64}
     T::Vector{Float64}
     Δ::Vector{Bool}
     R::BitMatrix
     o::Vector{Int64}
-    function CoxV2(T,Δ,X)
+    function CoxHessian(T,Δ,X)
         o = sortperm(T)
         R = T .<= T'
         new(X[o,:],T[o],Δ[o],R[o,o], o)
     end
 end
 
-function deriv_loss(beta, M::CoxV2)
+function deriv_loss(beta, M::CoxHessian)
     η = M.X*beta
     eη = exp.(η)
     n,m = nobs(M), nvar(M)
@@ -61,7 +61,7 @@ function deriv_loss(beta, M::CoxV2)
 end
 
 
-function update!(β, M::CoxV2)
+function update!(β, M::CoxHessian)
     grad, hess = deriv_loss(β, M)
     β .-= hess \ grad  
     return nothing

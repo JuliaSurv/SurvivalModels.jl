@@ -1,6 +1,6 @@
 """
-    CoxVO(T, Δ, X)
-    fit(CoxV0, @formula(Surv(T,Δ)~X), data = ...)
+    CoxNM(T, Δ, X)
+    fit(CoxNM, @formula(Surv(T,Δ)~X), data = ...)
 
 An implementation of the Cox proportional hazards model that minimizes the negative partial log-likelihood function (`cox_nllh`).
 This version uses the Nelder-Mead method, a derivative-free optimization algorithm. 
@@ -10,18 +10,18 @@ Fields:
 - T::Vector{Float64}: The observed times, sorted in ascending order 
 - Δ::Vector{Bool}: The event indicator vector (true for event, false for censoring)
 """
-struct CoxV0 <: CoxMethod
+struct CoxNM <: CoxMethod
     X::Matrix{Float64}
     T::Vector{Float64}
     Δ::Vector{Bool}
     o::Vector{Int64}
-    function CoxV0(T,Δ,X)
+    function CoxNM(T,Δ,X)
         o = sortperm(T)
         new(X[o,:],T[o],Δ[o], o)
     end
 end
 
-function getβ(M::CoxV0)
+function getβ(M::CoxNM)
     B0 = zeros(nvar(M))
     o = optimize(par -> cox_nllh(par, M.T, M.Δ, M.X), B0, method=NelderMead(), iterations=1000)
     return o.minimizer 
