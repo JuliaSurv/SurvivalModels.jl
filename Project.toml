@@ -1,6 +1,6 @@
 name = "SurvivalModels"
 uuid = "230d35e3-bb2c-48f4-adfc-0b42c4b39395"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Oskar Laverny <oskar.laverny@univ-amu.fr> and contributors"]
 
 [deps]
