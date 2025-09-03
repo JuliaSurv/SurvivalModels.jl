@@ -46,8 +46,9 @@ struct Cox{CM}
 end
 
 function loss(beta, M::CoxMethod)
-    η = M.X*beta
-    return dot(M.Δ, log.((M.T .<= M.T') * exp.(η)) .- η)
+    #η = M.X*beta
+    η = getX(M) * beta
+    return -dot(M.Δ, log.((M.T .<= M.T') * exp.(η)) .- η)
 end
 
 function getβ(M::CoxGrad; max_iter = 10000, tol = 1e-9)
@@ -210,14 +211,21 @@ function summary(C::Cox)
     z_scores = C.β ./ se
     p_values = 2 .* ccdf.(Normal(), abs.(z_scores))
 
+    q = quantile(Normal(), 0.975) 
+    ci_lower_β = C.β .- se .* q
+    ci_upper_β = C.β .+ se .* q
     return DataFrame(
         predictor = C.pred_names,
         β = C.β,
+        e_β = exp.(C.β),
         se = se,
+        z_scores = z_scores,
         p_values = p_values,
-        z_scores = z_scores 
+        ci_lower_β  = ci_lower_β,
+        ci_upper_β = ci_upper_β
     )
 end
+
 function _summary_line(C::Cox)
     c_index = harrells_c(C)
     return "Cox Model (n: $(nobs(C.M)), m: $(nvar(C.M)), method: $(typeof(C).parameters[1]), C-index: $(c_index))"
