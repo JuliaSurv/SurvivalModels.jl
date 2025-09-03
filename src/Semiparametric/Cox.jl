@@ -48,7 +48,7 @@ end
 function loss(beta, M::CoxMethod)
     #η = M.X*beta
     η = getX(M) * beta
-    return -dot(M.Δ, log.((M.T .<= M.T') * exp.(η)) .- η)
+    return dot(M.Δ, log.((M.T .<= M.T') * exp.(η)) .- η)
 end
 
 function getβ(M::CoxGrad; max_iter = 10000, tol = 1e-9)
