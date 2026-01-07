@@ -232,6 +232,14 @@ The outputed dataframe contains columns with respectively the name of the predic
 CoxMethod
 ```
 
+### Model Summary & Extraction
+
+To inspect the model statistics programmatically (such as extracting standard errors, p-values, or confidence intervals), you can use the `summary` function. This returns a DataFrame allowing for easy data manipulation.
+
+```@docs
+summary(::SurvivalModels.Cox)
+```
+
 
 ### 12. Prediction Interface
 

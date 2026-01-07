@@ -205,8 +205,37 @@ function StatsBase.fit(::Type{T}, formula::FormulaTerm, df::DataFrame) where T<:
     return Cox(CoxWorkerType(Y, Δ, X), Symbol.(predictor_names), catego)
 end
 
+"""
+    summary(model::Cox)
+
+Compute a statistical summary table for a fitted Cox proportional hazards model.
+
+This function calculates standard errors, z-scores, p-values, and confidence intervals.
+
+# Returns
+A `DataFrame` with the following columns:
+- `predictor`: Name of the covariate.
+- `β`: Estimated regression coefficient.
+- `e_β`: Hazard ratio (exp(β)).
+- `se`: Standard error of the coefficient.
+- `z_scores`: Wald statistic (β / se).
+- `p_values`: Two-sided p-value.
+- `ci_lower_β`: Lower bound of the 95% confidence interval for β.
+- `ci_upper_β`: Upper bound of the 95% confidence interval for β.
+
+# Example
+```julia
+model = fit(Cox, @formula(Surv(time, status) ~ age + sex), df)
+
+# Get the full summary dataframe
+summ = summary(model)
+
+# Extract standard errors specifically
+standard_errors = summ.se
+```
+"""
 function summary(C::Cox)
-    # Standard Error, z-scroe, p-values and c-index: 
+    # Standard Error, z-score, p-values and c-index: 
     se = sqrt.(diag(inv(get_hessian(C.M, C.β))))
     z_scores = C.β ./ se
     p_values = 2 .* ccdf.(Normal(), abs.(z_scores))
