@@ -37,7 +37,7 @@ hazard_cumhazard_plot(LogNormal(0.5, 1), "LogNormal")
 ### LogLogistic
 
 ```@example 1
-hazard_cumhazard_plot(LogLogistic(1, 0.5), "LogLogistic")
+hazard_cumhazard_plot(Distributions.LogLogistic(1, 0.5), "LogLogistic")
 ```
 
 ### Weibull
