@@ -246,21 +246,31 @@ summary(::SurvivalModels.Cox)
 After fitting a Cox model, you can obtain various types of predictions using the `predict` function:
 
 ```julia
-predict(model; type=:lp)        # Linear predictor (default)
-predict(model; type=:risk)      # Relative risk (exp(linear predictor))
-predict(model; type=:expected)  # Expected cumulative hazard
-predict(model; type=:survival)  # Survival probability
-predict(model; type=:terms)     # Contribution of each term (covariate) to the linear predictor
+predict(model, :lp)              # Linear predictor (default)
+predict(model, :risk)            # Relative risk (exp(linear predictor))
+predict(model, :expected)        # Cumulative hazard at each subject's own time Tᵢ
+predict(model, :survival)        # Survival probability at each subject's own time Tᵢ
+predict(model, :terms)           # Contribution of each term to the linear predictor
+
+predict(model, :expected, t)     # Cumulative hazard for every subject at scalar time t
+predict(model, :survival, t)
+predict(model, :expected, ts)    # Matrix (n × length(ts)) over a vector of times
+predict(model, :survival, ts)
 ```
 
 **Available types:**
 - `:lp` — Linear predictor (Xβ)
 - `:risk` — Relative risk, exp(Xβ)
-- `:expected` — Expected cumulative hazard for each subject
-- `:survival` — Survival probability for each subject
+- `:expected` — Expected cumulative hazard
+- `:survival` — Survival probability
 - `:terms` — Covariate-wise contributions to the linear predictor
 
-If you want to center predictions (e.g., for survival curves), you can use the `centered` keyword argument.
+**Output shapes for `:expected` and `:survival`:**
+- No time argument → length-`n` vector, with each subject evaluated at their own observed time `Tᵢ`. This matches R's `predict(coxph, type="expected")` / `type="survival"` convention.
+- `t::Real` → length-`n` vector at the scalar time.
+- `ts::AbstractVector` → `n × length(ts)` matrix.
+
+Passing a time argument with `:lp`, `:risk`, or `:terms` is an error — those types do not depend on time.
 
 ### Example: Prediction on New Data
 
@@ -302,6 +312,15 @@ And then each of the prediction type can be accessed as follows:
 ```
 ```@example 5
     predict(model, :survival)
+```
+
+Evaluate at arbitrary times:
+
+```@example 5
+    predict(model, :survival, 5.0)
+```
+```@example 5
+    predict(model, :survival, [1.0, 5.0, 10.0])
 ```
 
 
