@@ -40,8 +40,9 @@ struct Cox{CM}
     β::Vector{Float64}
     pred_names::Vector{Symbol}
     pred_types::Vector{Symbol}
-    function Cox(obj::CM, names, types) where {CM <: CoxMethod}
-        new{CM}(obj, getβ(obj), names, types)
+    formula::Union{FormulaTerm, Nothing}
+    function Cox(obj::CM, names, types; formula::Union{FormulaTerm, Nothing}=nothing) where {CM <: CoxMethod}
+        new{CM}(obj, getβ(obj), names, types, formula)
     end
 end
 
@@ -249,6 +250,95 @@ predict_survival(C::Cox)                     = exp.(-predict_expected(C))
 predict_survival(C::Cox, t::Real)            = exp.(-predict_expected(C, t))
 predict_survival(C::Cox, ts::AbstractVector) = exp.(-predict_expected(C, ts))
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Predict on new data
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Apply the fit's stored schema to `newdata` and return the design matrix `X_new`.
+# Errors if the model was constructed without a stored formula (e.g. by a direct
+# call to `Cox(obj, names, types)` without the keyword).
+function _build_X_for_newdata(C::Cox, newdata::DataFrame)
+    isnothing(C.formula) && error("This Cox model was constructed without a stored formula; predict-on-newdata is not available. Re-fit via `fit(Cox, @formula(...), df)` so the formula is captured.")
+    return modelcols(C.formula.rhs, newdata)
+end
+
+# Reference subject (1 × p row) from the training data: continuous covariates at
+# their training mean, categorical at their training mode. Used to centre linear
+# predictors at predict-time so the convention matches the no-newdata path and R.
+function _training_reference(C::Cox)
+    X_train = get_og_X(C.M)
+    d = nvar(C.M)
+    mX = zeros(1, d)
+    cat = C.pred_types .== :categorical
+    for i in 1:d
+        mX[1, i] = cat[i] ? mode(sort(X_train[:, i])) : mean(X_train[:, i])
+    end
+    return mX
+end
+
+# Linear predictor on new data, centred against the training reference by default.
+function predict_lp(C::Cox, newdata::DataFrame; centered::Bool=true)
+    X_new = _build_X_for_newdata(C, newdata)
+    η_new = X_new * C.β
+    centered || return η_new
+    return η_new .- (_training_reference(C) * C.β)[1]
+end
+
+# Relative risk `exp(η_new)` on new data.
+predict_risk(C::Cox, newdata::DataFrame) = exp.(predict_lp(C, newdata))
+
+# Per-subject × per-variable centred contributions to the linear predictor on new data.
+function predict_terms(C::Cox, newdata::DataFrame)
+    X_new = _build_X_for_newdata(C, newdata)
+    β = C.β
+    d = nvar(C.M)
+    rez = X_new .* β'
+    mX = _training_reference(C)
+    @inbounds for i in 1:d
+        rez[:, i] .-= mX[1, i] * β[i]
+    end
+    return rez
+end
+
+# Internal: `n_new × length(times)` matrix of cumulative hazards on newdata.
+function _predict_expected_at_newdata(C::Cox, newdata::DataFrame, times::AbstractVector)
+    Λ0 = baseline_hazard(C, centered=true)
+    t_grid = sort(unique(C.M.T))
+    η_new = exp.(predict_lp(C, newdata))
+    n, m = length(η_new), length(times)
+    out = Matrix{Float64}(undef, n, m)
+    @inbounds for j in 1:m
+        Λ_j = _cumhaz_at(Λ0, t_grid, times[j])
+        for i in 1:n
+            out[i, j] = Λ_j * η_new[i]
+        end
+    end
+    return out
+end
+
+"""
+    predict_expected(C::Cox, newdata::DataFrame, t::Real)
+    predict_expected(C::Cox, newdata::DataFrame, ts::AbstractVector)
+
+Per-subject cumulative hazard `Λᵢ(t)` for subjects in `newdata` evaluated at user-supplied
+times. Length-`n_new` vector for scalar `t`; `n_new × length(ts)` matrix for a vector.
+Centred against the training reference subject so the absolute scale matches the
+no-newdata path. Newdata predictions require an explicit time argument — there is no
+"own time" default for arbitrary new subjects.
+"""
+predict_expected(C::Cox, newdata::DataFrame, t::Real)            = vec(_predict_expected_at_newdata(C, newdata, [t]))
+predict_expected(C::Cox, newdata::DataFrame, ts::AbstractVector) = _predict_expected_at_newdata(C, newdata, ts)
+
+"""
+    predict_survival(C::Cox, newdata::DataFrame, t::Real)
+    predict_survival(C::Cox, newdata::DataFrame, ts::AbstractVector)
+
+Per-subject survival probability `Sᵢ(t) = exp(-Λᵢ(t))` on `newdata` at user times.
+Shapes match [`predict_expected`](@ref).
+"""
+predict_survival(C::Cox, newdata::DataFrame, t::Real)            = exp.(-predict_expected(C, newdata, t))
+predict_survival(C::Cox, newdata::DataFrame, ts::AbstractVector) = exp.(-predict_expected(C, newdata, ts))
+
 function StatsBase.predict(C::Cox, type::Symbol=:lp)
     type==:lp && return predict_lp(C)
     type==:risk && return predict_risk(C)
@@ -270,6 +360,26 @@ function StatsBase.predict(C::Cox, type::Symbol, ts::AbstractVector)
     error("Time-indexed `predict` only supports `:expected` and `:survival`, got `:$type`.")
 end
 
+function StatsBase.predict(C::Cox, type::Symbol, newdata::DataFrame)
+    type == :lp    && return predict_lp(C, newdata)
+    type == :risk  && return predict_risk(C, newdata)
+    type == :terms && return predict_terms(C, newdata)
+    type in (:expected, :survival) && error("`:$type` on newdata requires a time argument: predict(C, :$type, newdata, t).")
+    error("Unsupported predict type `:$type`. Supported on newdata: `:lp`, `:risk`, `:terms`, `:expected`, `:survival`.")
+end
+
+function StatsBase.predict(C::Cox, type::Symbol, newdata::DataFrame, t::Real)
+    type == :expected && return predict_expected(C, newdata, t)
+    type == :survival && return predict_survival(C, newdata, t)
+    error("Time-indexed `predict` on newdata only supports `:expected` and `:survival`, got `:$type`.")
+end
+
+function StatsBase.predict(C::Cox, type::Symbol, newdata::DataFrame, ts::AbstractVector)
+    type == :expected && return predict_expected(C, newdata, ts)
+    type == :survival && return predict_survival(C, newdata, ts)
+    error("Time-indexed `predict` on newdata only supports `:expected` and `:survival`, got `:$type`.")
+end
+
 function StatsBase.fit(::Type{T}, formula::FormulaTerm, df::DataFrame) where T<:Union{CoxMethod,Cox}
     CoxWorkerType = (isconcretetype(T) || T != Cox) ? T : CoxDefault
     formula_applied = apply_schema(formula, schema(df))
@@ -279,7 +389,7 @@ function StatsBase.fit(::Type{T}, formula::FormulaTerm, df::DataFrame) where T<:
     predictor_names = coefnames(formula_applied.rhs)
     catego = typeof.(formula_applied.rhs.terms) .<: CategoricalTerm
     catego = [c ? :categorical : :continuous for c in catego]
-    return Cox(CoxWorkerType(Y, Δ, X), Symbol.(predictor_names), catego)
+    return Cox(CoxWorkerType(Y, Δ, X), Symbol.(predictor_names), catego; formula = formula_applied)
 end
 
 """

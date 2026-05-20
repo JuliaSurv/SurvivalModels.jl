@@ -272,6 +272,22 @@ predict(model, :survival, ts)
 
 Passing a time argument with `:lp`, `:risk`, or `:terms` is an error — those types do not depend on time.
 
+### Predict on new data
+
+Each `type` accepts a `newdata::DataFrame` argument. The fitted formula's schema is re-applied to `newdata` to build the new design matrix, so `newdata` must contain every predictor column referenced in the original `@formula(...)`. Centering is against the **training** reference subject (continuous covariates at their training mean, categorical at their training mode) — so predictions made on `newdata` are on the same absolute scale as the no-newdata path.
+
+```julia
+predict(model, :lp,    newdata)             # length-n_new vector
+predict(model, :risk,  newdata)             # length-n_new vector
+predict(model, :terms, newdata)             # n_new × p matrix
+predict(model, :expected, newdata, t)       # length-n_new at scalar t
+predict(model, :survival, newdata, t)
+predict(model, :expected, newdata, ts)      # n_new × length(ts) matrix
+predict(model, :survival, newdata, ts)
+```
+
+`:expected` and `:survival` on `newdata` **require** an explicit time argument — there is no "own time" default for arbitrary new subjects. Passing a time with `:lp` / `:risk` / `:terms` errors.
+
 ```@docs
 SurvivalModels.predict_expected
 ```

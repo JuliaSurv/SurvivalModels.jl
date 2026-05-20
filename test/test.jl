@@ -194,6 +194,74 @@ end
     end
 end
 
+
+@testitem "Cox predict on newdata" begin
+    using DataFrames
+    using SurvivalModels: predict, CoxNM, CoxOptim, CoxHessian, CoxDefault, CoxApprox
+
+    time   = [1.0, 3.0, 5.0, 6.0, 2.0, 7.0, 9.0, 11.0]
+    status = [true, false, true, true, true, false, true, true]
+    sex    = Symbol.([1, 1, 1, 1, 0, 0, 0, 0])
+    age    = [57, 52, 48, 42, 39, 31, 26, 22]
+    df     = DataFrame(time = time, status = status, sex = sex, age = age)
+    f      = @formula(Surv(time, status) ~ age + sex)
+    n      = length(time)
+
+    for M in (CoxNM, CoxOptim, CoxHessian, CoxDefault, CoxApprox)
+        model = fit(M, f, df)
+
+        # Self-consistency: passing the training df via the newdata path equals the
+        # no-newdata path that uses the model's internal X.
+        @test predict(model, :lp,    df) ≈ predict(model, :lp)         rtol = 1e-10
+        @test predict(model, :risk,  df) ≈ predict(model, :risk)       rtol = 1e-10
+        @test predict(model, :terms, df) ≈ predict(model, :terms)      rtol = 1e-10
+        @test predict(model, :expected, df, 1.0) ≈ predict(model, :expected, 1.0) rtol = 1e-10
+        @test predict(model, :survival, df, [0.5, 1.0]) ≈ predict(model, :survival, [0.5, 1.0]) rtol = 1e-10
+
+        # Held-out slice shapes
+        held = df[1:3, :]
+        @test size(predict(model, :lp,    held)) == (3,)
+        @test size(predict(model, :risk,  held)) == (3,)
+        @test size(predict(model, :terms, held)) == (3, 2)
+        @test size(predict(model, :expected, held, 5.0))           == (3,)
+        @test size(predict(model, :survival, held, [1.0, 5.0]))    == (3, 2)
+
+        # Survival on newdata is in [0,1] and non-increasing in t (per subject)
+        S = predict(model, :survival, held, [0.5, 1.0, 5.0, 11.0])
+        @test all(0 .≤ S .≤ 1 .+ 1e-12)
+        @test all(diff(S, dims = 2) .≤ 1e-12)
+
+        # Newdata predict requires time for :expected and :survival
+        @test_throws ErrorException predict(model, :expected, held)
+        @test_throws ErrorException predict(model, :survival, held)
+
+        # Newdata predict rejects time for :lp / :risk / :terms
+        @test_throws ErrorException predict(model, :lp,    held, 1.0)
+        @test_throws ErrorException predict(model, :risk,  held, 1.0)
+        @test_throws ErrorException predict(model, :terms, held, 1.0)
+    end
+end
+
+
+@testitem "Cox newdata predict errors without stored formula" begin
+    using DataFrames
+    using SurvivalModels: predict, CoxDefault, Cox
+
+    time   = [1.0, 3.0, 5.0, 6.0, 2.0, 7.0, 9.0, 11.0]
+    status = [true, false, true, true, true, false, true, true]
+    sex    = Symbol.([1, 1, 1, 1, 0, 0, 0, 0])
+    age    = [57, 52, 48, 42, 39, 31, 26, 22]
+    df     = DataFrame(time = time, status = status, sex = sex, age = age)
+
+    # Construct a Cox without a formula via the public constructor (backwards-compatible path)
+    # — simulate a direct-constructor user who didn't pass `formula = ...`.
+    X = hcat(age, [s == Symbol(1) ? 1.0 : 0.0 for s in sex])
+    worker = CoxDefault(time, Bool.(status), X)
+    bare = Cox(worker, [:age, :sex], [:continuous, :categorical])
+
+    @test_throws ErrorException predict(bare, :lp, df)
+end
+
 @testitem "Verify the correctness of the KaplanMeier implementation" begin
     using SurvivalModels: KaplanMeier
 
