@@ -272,6 +272,14 @@ predict(model, :survival, ts)
 
 Passing a time argument with `:lp`, `:risk`, or `:terms` is an error — those types do not depend on time.
 
+```@docs
+SurvivalModels.predict_expected
+```
+
+```@docs
+SurvivalModels.predict_survival
+```
+
 ### Example: Prediction on New Data
 
 The following example is drawn from [this article](https://missingdatasolutions.rbind.io/2022/12/cox-baseline-hazard/). 

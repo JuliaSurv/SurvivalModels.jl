@@ -184,22 +184,16 @@ function predict_terms(C::Cox, og=true)
 end
 predict_risk(C::Cox; type = :risk) = exp.(predict_lp(C))
 
-"""
-    _cumhaz_at(Λ0, t_grid, t)
-
-Step-interpolate the Breslow cumulative baseline hazard `Λ0` (sampled at the sorted
-ascending grid `t_grid`) onto an arbitrary time `t`. Cumulative hazard is right-continuous
-with left limits: returns `0` for `t < t_grid[1]` and `Λ0[end]` for `t ≥ t_grid[end]`.
-"""
+# Step-interpolate the Breslow cumulative baseline hazard `Λ0` (sampled at the sorted
+# ascending grid `t_grid`) onto an arbitrary time `t`. Cumulative hazard is right-continuous
+# with left limits: returns `0` for `t < t_grid[1]` and `Λ0[end]` for `t ≥ t_grid[end]`.
 function _cumhaz_at(Λ0::AbstractVector, t_grid::AbstractVector, t::Real)
     idx = searchsortedlast(t_grid, t)
     return idx == 0 ? zero(eltype(Λ0)) : Λ0[idx]
 end
 
-"""
-Internal: returns an `n × length(times)` matrix of cumulative hazards
-`Λᵢ(t) = Λ₀(t) · exp(ηᵢ)` for every subject `i` and every requested time.
-"""
+# Internal: returns an `n × length(times)` matrix of cumulative hazards
+# `Λᵢ(t) = Λ₀(t) · exp(ηᵢ)` for every subject `i` and every requested time.
 function _predict_expected_at(C::Cox, times::AbstractVector)
     Λ0 = baseline_hazard(C, centered=true)
     t_grid = sort(unique(C.M.T))
