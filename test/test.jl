@@ -135,16 +135,62 @@ end
                                         -8.6357545  0.000000
                                         -11.1710219  0.000000] rtol=1e-2
 
-        # These two broken tests corresponds to values really outputted by R. 
-        @test_broken predict(model, :expected) ≈ [0.9385114, 0.6811525, 0.9959573, 0.3843788, 0.3230369, 0.6475801, 0.9538031, 1.0755799] rtol=1e-2
-        @test_broken predict(model, :survival) ≈ [0.3912098, 0.5060335, 0.3693697, 0.6808734, 0.7239472, 0.5233106, 0.3852730, 0.3410999] rtol=1e-2
+        # The no-arg form evaluates each subject at its own observed time Tᵢ — matches
+        # R's `predict(coxph, type="expected")` / `type="survival"` convention.
+        @test predict(model, :expected) ≈ [0.9385114, 0.6811525, 0.9959573, 0.3843788, 0.3230369, 0.6475801, 0.9538031, 1.0755799] rtol=1e-2
+        @test predict(model, :survival) ≈ [0.3912098, 0.5060335, 0.3693697, 0.6808734, 0.7239472, 0.5233106, 0.3852730, 0.3410999] rtol=1e-2
 
-        # While these two working ones corresponds to the explanations that are on the website: 
-        @test predict(model, :expected) ≈ [0.93851138, 0.68115250, 0.05397488, 0.02221579, 103.13326837, 0.64758014, 0.95380312, 1.07557986] rtol=1e-2
-        @test predict(model, :survival) ≈ [3.912098e-01, 5.060335e-01, 9.474559e-01, 9.780292e-01, 1.621028e-45, 5.233106e-01, 3.852730e-01, 3.410999e-01] rtol=1e-2
+    end
+end
 
-        # Which ones hsould we keep ? can we reproduce (with e.g. another symbol like :expected2 and :survival2) the number given by R ? 
 
+@testitem "Cox predict at arbitrary times" begin
+    using DataFrames
+    using SurvivalModels: baseline_hazard, predict, CoxNM, CoxOptim, CoxHessian, CoxDefault, CoxApprox
+
+    # Same fixture as the baseline-hazard testitem above
+    time   = [1.0, 3.0, 5.0, 6.0, 2.0, 7.0, 9.0, 11.0]
+    status = [true, false, true, true, true, false, true, true]
+    sex    = Symbol.([1, 1, 1, 1, 0, 0, 0, 0])
+    age    = [57, 52, 48, 42, 39, 31, 26, 22]
+    df     = DataFrame(time = time, status = status, sex = sex, age = age)
+    f      = @formula(Surv(time, status) ~ age + sex)
+    n      = length(time)
+
+    for M in (CoxNM, CoxOptim, CoxHessian, CoxDefault, CoxApprox)
+        model = fit(M, f, df)
+
+        # Scalar t: length-n vector
+        @test size(predict(model, :expected, 5.0))  == (n,)
+        @test size(predict(model, :survival, 5.0))  == (n,)
+
+        # Vector ts: n × length(ts) matrix
+        ts = [1.0, 5.0, 10.0]
+        @test size(predict(model, :expected, ts))   == (n, length(ts))
+        @test size(predict(model, :survival, ts))   == (n, length(ts))
+
+        # Self-consistency: the no-arg form equals predict(:expected, Tᵢ) at each subject
+        no_arg = predict(model, :expected)
+        for i in 1:n
+            @test no_arg[i] ≈ predict(model, :expected, time[i])[i] rtol=1e-10
+        end
+
+        # Survival probabilities are in [0, 1] and monotone non-increasing in t
+        S = predict(model, :survival, [0.1, 0.5, 1.0, 2.0, 5.0, 10.0])
+        @test all(0 .≤ S .≤ 1 .+ 1e-12)
+        @test all(diff(S, dims = 2) .≤ 1e-12)
+
+        # S(t < min(T)) ≈ 1; S(t = 0) ≈ 1
+        @test predict(model, :survival, 0.0)    ≈ ones(n) atol=1e-10
+        @test predict(model, :survival, 1e-6)   ≈ ones(n) atol=1e-10
+
+        # Beyond max(T) plateaus at S(max(T))
+        @test predict(model, :survival, 1e6)    ≈ predict(model, :survival, maximum(time)) rtol=1e-10
+
+        # Misuse on a non-time-indexed prediction type errors loudly
+        @test_throws ErrorException predict(model, :lp,    5.0)
+        @test_throws ErrorException predict(model, :risk,  5.0)
+        @test_throws ErrorException predict(model, :terms, 5.0)
     end
 end
 

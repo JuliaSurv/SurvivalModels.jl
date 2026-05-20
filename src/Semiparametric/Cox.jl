@@ -93,6 +93,7 @@ nobs(M::CoxMethod) = size(getX(M),1) # Default to X being (n,m)
 nvar(M::CoxMethod) = size(getX(M),2)
 get_perm(M::CoxMethod) = M.o
 get_og_X(M::CoxMethod) = getX(M)[sortperm(get_perm(M)), :]
+get_og_T(M::CoxMethod) = M.T[sortperm(get_perm(M))]
 
 # Extract the hessian: 
 function get_hessian(M::CoxMethod, β)
@@ -181,9 +182,73 @@ function predict_terms(C::Cox, og=true)
     end
     return rez
 end
-predict_expected(C::Cox) = baseline_hazard(C, centered=true) .* exp.(predict_lp(C))
-predict_survival(C::Cox) = exp.(-predict_expected(C))
 predict_risk(C::Cox; type = :risk) = exp.(predict_lp(C))
+
+# Step-interpolate the Breslow cumulative baseline hazard `Λ0` (sampled at the sorted
+# ascending grid `t_grid`) onto an arbitrary time `t`. Cumulative hazard is right-continuous
+# with left limits: returns `0` for `t < t_grid[1]` and `Λ0[end]` for `t ≥ t_grid[end]`.
+function _cumhaz_at(Λ0::AbstractVector, t_grid::AbstractVector, t::Real)
+    idx = searchsortedlast(t_grid, t)
+    return idx == 0 ? zero(eltype(Λ0)) : Λ0[idx]
+end
+
+# Internal: returns an `n × length(times)` matrix of cumulative hazards
+# `Λᵢ(t) = Λ₀(t) · exp(ηᵢ)` for every subject `i` and every requested time.
+function _predict_expected_at(C::Cox, times::AbstractVector)
+    Λ0 = baseline_hazard(C, centered=true)
+    t_grid = sort(unique(C.M.T))
+    η = exp.(predict_lp(C))
+    n, m = length(η), length(times)
+    out = Matrix{Float64}(undef, n, m)
+    @inbounds for j in 1:m
+        Λ_j = _cumhaz_at(Λ0, t_grid, times[j])
+        for i in 1:n
+            out[i, j] = Λ_j * η[i]
+        end
+    end
+    return out
+end
+
+"""
+    predict_expected(C::Cox)
+    predict_expected(C::Cox, t::Real)
+    predict_expected(C::Cox, ts::AbstractVector)
+
+Cumulative hazard `Λᵢ(t) = Λ₀(t) · exp(ηᵢ)` per subject, where `Λ₀` is the Breslow
+estimator centered to the fit's reference (continuous covariates at their mean,
+categorical at their mode) and `ηᵢ = (Xᵢ - X̄) β`.
+
+Output shape:
+- no time argument → length-`n` vector with each subject evaluated at their own
+  observed time `Tᵢ` (the convention used by R's `predict(coxph, type="expected")`);
+- `t::Real` → length-`n` vector at the scalar time;
+- `ts::AbstractVector` → `n × length(ts)` matrix.
+"""
+function predict_expected(C::Cox)
+    Λ0 = baseline_hazard(C, centered=true)
+    t_grid = sort(unique(C.M.T))
+    η = exp.(predict_lp(C))             # original data order
+    T_og = get_og_T(C.M)                # original data order
+    return [_cumhaz_at(Λ0, t_grid, T_og[i]) * η[i] for i in eachindex(η)]
+end
+predict_expected(C::Cox, t::Real)           = vec(_predict_expected_at(C, [t]))
+predict_expected(C::Cox, ts::AbstractVector) = _predict_expected_at(C, ts)
+
+"""
+    predict_survival(C::Cox)
+    predict_survival(C::Cox, t::Real)
+    predict_survival(C::Cox, ts::AbstractVector)
+
+Per-subject survival probability `Sᵢ(t) = exp(-Λᵢ(t))` derived from
+[`predict_expected`](@ref). Shapes match `predict_expected`: the no-argument form
+returns a length-`n` vector with each subject at their own observed time `Tᵢ`;
+the `t::Real` form is a length-`n` vector at a scalar time; the `ts::AbstractVector`
+form is an `n × length(ts)` matrix.
+"""
+predict_survival(C::Cox)                     = exp.(-predict_expected(C))
+predict_survival(C::Cox, t::Real)            = exp.(-predict_expected(C, t))
+predict_survival(C::Cox, ts::AbstractVector) = exp.(-predict_expected(C, ts))
+
 function StatsBase.predict(C::Cox, type::Symbol=:lp)
     type==:lp && return predict_lp(C)
     type==:risk && return predict_risk(C)
@@ -191,6 +256,18 @@ function StatsBase.predict(C::Cox, type::Symbol=:lp)
     type==:terms && return predict_terms(C)
     type==:survival && return predict_survival(C)
     error("The prediction you want was not understood. Please pass a `type` parameter among (:lp, :risk, :expected, :terms, :survival). See `?Cox` for details.")
+end
+
+function StatsBase.predict(C::Cox, type::Symbol, t::Real)
+    type==:expected && return predict_expected(C, t)
+    type==:survival && return predict_survival(C, t)
+    error("Time-indexed `predict` only supports `:expected` and `:survival`, got `:$type`.")
+end
+
+function StatsBase.predict(C::Cox, type::Symbol, ts::AbstractVector)
+    type==:expected && return predict_expected(C, ts)
+    type==:survival && return predict_survival(C, ts)
+    error("Time-indexed `predict` only supports `:expected` and `:survival`, got `:$type`.")
 end
 
 function StatsBase.fit(::Type{T}, formula::FormulaTerm, df::DataFrame) where T<:Union{CoxMethod,Cox}
