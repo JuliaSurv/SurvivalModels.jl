@@ -659,6 +659,29 @@ model
 A higher C-index indicates better predictive discrimination.
 
 
+## Model Evaluation: Brier Score
+
+The **Brier score** measures the squared error between predicted survival probabilities and the observed survival status at a given evaluation time. With censoring, the standard estimator is the inverse-probability-of-censoring-weighted (IPCW) form of Graf, Schmoor, Sauerbrei & Schumacher (1999), which up-weights each subject by an estimate of the censoring survival function.
+
+```@docs
+SurvivalModels.brier_score
+```
+
+```@docs
+SurvivalModels.integrated_brier_score
+```
+
+Quick example on the `colon` fixture:
+
+```@example 2
+SurvivalModels.brier_score(model_colon, [1000.0, 2000.0, 3000.0])
+```
+
+```@example 2
+SurvivalModels.integrated_brier_score(model_colon; t_max = 3000.0)
+```
+
+
 ```@bibliography
 Pages = ["cox.md"]
 Canonical = false

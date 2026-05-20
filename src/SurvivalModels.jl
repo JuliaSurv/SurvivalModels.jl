@@ -11,6 +11,7 @@ include("NonParametric/KaplanMeier.jl")
 include("NonParametric/LogRankTest.jl")
 include("Semiparametric/Cox.jl")
 include("Parametric/GeneralHazard.jl")
+include("Metrics/BrierScore.jl")
 
 export fit, predict, KaplanMeier, LogRankTest, Cox, @formula, Surv, Strata, confint, GeneralHazard, ProportionalHazard, AcceleratedFaillureTime, AcceleratedHazard, simGH, loss
 

@@ -95,8 +95,9 @@ nvar(M::CoxMethod) = size(getX(M),2)
 get_perm(M::CoxMethod) = M.o
 get_og_X(M::CoxMethod) = getX(M)[sortperm(get_perm(M)), :]
 get_og_T(M::CoxMethod) = M.T[sortperm(get_perm(M))]
+get_og_Δ(M::CoxMethod) = M.Δ[sortperm(get_perm(M))]
 
-# Extract the hessian: 
+# Extract the hessian:
 function get_hessian(M::CoxMethod, β)
     n, m = nobs(M), nvar(M)
     X = getX(M)
