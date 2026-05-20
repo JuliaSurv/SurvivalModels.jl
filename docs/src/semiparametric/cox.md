@@ -661,7 +661,40 @@ A higher C-index indicates better predictive discrimination.
 
 ## Model Evaluation: Brier Score
 
-The **Brier score** measures the squared error between predicted survival probabilities and the observed survival status at a given evaluation time. With censoring, the standard estimator is the inverse-probability-of-censoring-weighted (IPCW) form of Graf, Schmoor, Sauerbrei & Schumacher (1999), which up-weights each subject by an estimate of the censoring survival function.
+The **Brier score** measures the squared error between predicted survival probabilities and the observed survival status at a chosen evaluation time ``t^*``.
+
+### Uncensored definition
+
+With every event observed, the Brier score is the mean squared prediction error:
+
+```math
+BS(t^*) = \frac{1}{n} \sum_{i=1}^{n} \left( Y_i(t^*) - \hat{S}_i(t^*) \right)^2
+```
+
+where ``Y_i(t^*) = \mathbf{1}(T_i > t^*)`` is the at-risk indicator (1 if subject ``i`` is still event-free at ``t^*``, 0 otherwise) and ``\hat{S}_i(t^*)`` is the model's predicted survival probability for subject ``i`` at ``t^*``.
+
+### IPCW form (Graf et al. 1999)
+
+Under censoring the indicator ``Y_i(t^*)`` is unobserved for subjects censored before ``t^*``. The standard remedy is the inverse-probability-of-censoring-weighted (IPCW) estimator:
+
+```math
+\widehat{BS}(t^*) = \frac{1}{n} \sum_{i=1}^{n} \left[
+\mathbf{1}(T_i \le t^*, \delta_i = 1) \cdot \frac{\left(0 - \hat{S}_i(t^*)\right)^2}{\hat{G}(T_i)} +
+\mathbf{1}(T_i > t^*) \cdot \frac{\left(1 - \hat{S}_i(t^*)\right)^2}{\hat{G}(t^*)}
+\right]
+```
+
+where ``\hat{G}(t) = \widehat{P}(C > t)`` is the Kaplan–Meier estimator of the censoring survival function (fit on ``(T_i, 1 - \delta_i)``). Subjects censored before ``t^*`` (``T_i \le t^*, \delta_i = 0``) contribute zero weight.
+
+### Integrated Brier score
+
+To summarise the Brier score across a horizon ``[0, t_{\max}]``:
+
+```math
+IBS(t_{\max}) = \frac{1}{t_{\max}} \int_{0}^{t_{\max}} \widehat{BS}(u) \, du
+```
+
+Computed by the trapezoid rule on a uniform grid; the ``1 / t_{\max}`` normalisation makes the value comparable across horizon choices.
 
 ```@docs
 SurvivalModels.brier_score
