@@ -262,6 +262,37 @@ end
     @test_throws ErrorException predict(bare, :lp, df)
 end
 
+
+@testitem "Verify harrells_c" begin
+    using SurvivalModels: harrells_c
+
+    # Perfect concordance: higher risk = earlier event
+    T = [1.0, 2.0, 3.0, 4.0]
+    Δ = [true, true, true, true]
+    @test harrells_c(T, Δ, [4.0, 3.0, 2.0, 1.0]) == 1.0
+
+    # Reversed: every comparable pair is discordant
+    @test harrells_c(T, Δ, [1.0, 2.0, 3.0, 4.0]) == 0.0
+
+    # All-tied risks: every pair is tied → C = 0.5 by the tied-half-credit convention
+    @test harrells_c(T, Δ, [1.0, 1.0, 1.0, 1.0]) == 0.5
+
+    # Censored subjects don't form permissible pairs with later observations:
+    # T = [1, 2, 3], Δ = [false, true, true]. Only pair (subject-2, subject-3) is permissible.
+    T_c = [1.0, 2.0, 3.0]
+    Δ_c = [false, true, true]
+    @test harrells_c(T_c, Δ_c, [0.0, 2.0, 1.0]) == 1.0       # subject 2 has higher risk → concordant
+    @test harrells_c(T_c, Δ_c, [0.0, 1.0, 2.0]) == 0.0       # subject 2 has lower risk → discordant
+    @test harrells_c(T_c, Δ_c, [0.0, 1.0, 1.0]) == 0.5       # tied risks on the single permissible pair
+    @test harrells_c(T_c, Δ_c, [9.0, 2.0, 1.0]) == 1.0       # subject 1's risk irrelevant — no permissible pair involves it
+
+    # Cross-check against R's `survival::concordance` on the ovarian fixture
+    using RDatasets
+    ovarian = dataset("survival", "ovarian")
+    model = fit(Cox, @formula(Surv(FUTime, FUStat) ~ Age + ECOG_PS), ovarian)
+    @test harrells_c(model) ≈ 0.7844 rtol = 1e-3
+end
+
 @testitem "Verify the correctness of the KaplanMeier implementation" begin
     using SurvivalModels: KaplanMeier
 
