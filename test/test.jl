@@ -262,6 +262,47 @@ end
     @test_throws ErrorException predict(bare, :lp, df)
 end
 
+
+@testitem "Cox handles multi-level categorical predictors" begin
+    # Regression test for the BoundsError reported in #52: `predict_lp` and
+    # `predict_terms` index `pred_types` column-wise, but fit previously built
+    # it term-wise — so any k-level categorical with k ≥ 3 broke every predict
+    # path that goes through the centring loop.
+    using DataFrames, Random
+    using SurvivalModels: predict, nvar
+
+    rng = MersenneTwister(123)
+    n   = 50
+    df  = DataFrame(
+        time   = rand(rng, n) .* 10 .+ 0.1,
+        status = rand(rng, Bool, n),
+        age    = randn(rng, n),
+        rx     = Symbol.(rand(rng, [:a, :b, :c], n)),   # 3-level categorical
+    )
+    model = fit(Cox, @formula(Surv(time, status) ~ age + rx), df)
+
+    # The invariant: pred_types is per-design-column, same length as pred_names
+    # and `nvar(C.M)`. With reference encoding on a 3-level factor we expect
+    # `[:continuous, :categorical, :categorical]`.
+    @test length(model.pred_types) == length(model.pred_names)
+    @test length(model.pred_types) == nvar(model.M)
+    @test model.pred_types == [:continuous, :categorical, :categorical]
+
+    # Every prediction mode runs without BoundsError and returns the expected
+    # shape. The actual numerical values are exercised by other testitems on
+    # simpler fixtures.
+    @test size(predict(model, :lp))                 == (n,)
+    @test size(predict(model, :risk))               == (n,)
+    @test size(predict(model, :terms))              == (n, nvar(model.M))
+    @test size(predict(model, :expected))           == (n,)
+    @test size(predict(model, :survival))           == (n,)
+    @test size(predict(model, :expected, 5.0))      == (n,)
+    @test size(predict(model, :survival, [1.0, 5.0])) == (n, 2)
+
+    # Newdata path also exercises predict_lp through _build_X_for_newdata.
+    @test size(predict(model, :lp, df)) == (n,)
+end
+
 @testitem "Verify the correctness of the KaplanMeier implementation" begin
     using SurvivalModels: KaplanMeier
 

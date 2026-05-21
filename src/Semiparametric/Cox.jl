@@ -387,8 +387,14 @@ function StatsBase.fit(::Type{T}, formula::FormulaTerm, df::DataFrame) where T<:
     X = modelcols(formula_applied.rhs, df)
     Y, Δ = resp[:, 1], Bool.(resp[:, 2])
     predictor_names = coefnames(formula_applied.rhs)
-    catego = typeof.(formula_applied.rhs.terms) .<: CategoricalTerm
-    catego = [c ? :categorical : :continuous for c in catego]
+    # `pred_types` must be one entry per design-matrix column so the per-column
+    # loops in `predict_lp`, `predict_terms`, and `_training_reference` stay aligned.
+    # A k-level categorical with reference encoding contributes `width(term) = k - 1`
+    # columns, not 1, so we expand the per-term tag accordingly.
+    catego = mapreduce(vcat, formula_applied.rhs.terms; init = Symbol[]) do term
+        is_cat = term isa CategoricalTerm
+        fill(is_cat ? :categorical : :continuous, StatsModels.width(term))
+    end
     return Cox(CoxWorkerType(Y, Δ, X), Symbol.(predictor_names), catego; formula = formula_applied)
 end
 
