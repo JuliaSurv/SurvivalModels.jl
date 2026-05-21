@@ -55,20 +55,27 @@ struct GeneralHazardModel{Method, B}
     X2::Matrix{Float64}
     α::Vector{Float64}
     β::Vector{Float64}
+    formula1::Union{FormulaTerm, Nothing}
+    formula2::Union{FormulaTerm, Nothing}
 
     # Direct constructor: all parameters provided, no optimization
-    function GeneralHazardModel(::Method, T, Δ, baseline::B, X1, X2, α, β) where {Method<:AbstractGHMethod, B}
-        X1 = length(size(X1)) == 2 ? X1 : reshape(X1, :, 1) # X1 and X2 must be matrices. 
+    function GeneralHazardModel(::Method, T, Δ, baseline::B, X1, X2, α, β;
+                                formula1::Union{FormulaTerm, Nothing}=nothing,
+                                formula2::Union{FormulaTerm, Nothing}=nothing) where {Method<:AbstractGHMethod, B}
+        X1 = length(size(X1)) == 2 ? X1 : reshape(X1, :, 1) # X1 and X2 must be matrices.
         X2 = length(size(X2)) == 2 ? X2 : reshape(X2, :, 1)
         return new{Method, B}(
             collect(T), Bool.(Δ), baseline,
             Matrix{Float64}(X1), Matrix{Float64}(X2),
-            collect(α), collect(β)
+            collect(α), collect(β),
+            formula1, formula2,
         )
     end
 
     # Existing constructor with optimizer (kept as is)
-    function GeneralHazardModel(m::Method, T, Δ, baseline, X1, X2) where {Method<:AbstractGHMethod}
+    function GeneralHazardModel(m::Method, T, Δ, baseline, X1, X2;
+                                formula1::Union{FormulaTerm, Nothing}=nothing,
+                                formula2::Union{FormulaTerm, Nothing}=nothing) where {Method<:AbstractGHMethod}
         npd, p, q = length(Distributions.params(baseline)), size(X1,2), size(X2,2)
         init = zeros(npd+p+q)
         base_T = typeof(baseline).name.wrapper
@@ -85,7 +92,7 @@ struct GeneralHazardModel{Method, B}
         end
         par = optimize(mloglik, init, method=LBFGS()).minimizer
         d, α, β = base_T(exp.(par[1:npd])...), par[npd .+ (1:q)], par[npd + q .+ (1:p)]
-        return new{Method, typeof(d)}(T, Δ, d, X1, X2, α, β)
+        return new{Method, typeof(d)}(T, Δ, d, X1, X2, α, β, formula1, formula2)
     end
 end
 
@@ -227,7 +234,8 @@ function StatsBase.fit(::Type{GHM},
     X1 = modelcols(f1_applied.rhs, df)
     X2 = modelcols(f2_applied.rhs, df)
     TΔ = modelcols(f1_applied.lhs, df)
-    return GeneralHazardModel(_method(GHM), TΔ[:,1], TΔ[:,2], _baseline(GHM), X1, X2)
+    return GeneralHazardModel(_method(GHM), TΔ[:,1], TΔ[:,2], _baseline(GHM), X1, X2;
+                              formula1 = f1_applied, formula2 = f2_applied)
 end
 function StatsBase.fit(::Type{GHM},
     formula::FormulaTerm,
@@ -236,20 +244,41 @@ function StatsBase.fit(::Type{GHM},
     f_applied = apply_schema(formula, sdf)
     X = modelcols(f_applied.rhs, df)
     TΔ = modelcols(f_applied.lhs, df)
-    # Use X for both X1 and X2 (PH, AFT, AH models will ignore one of them)
-    return GeneralHazardModel(_method(GHM), TΔ[:,1], TΔ[:,2], _baseline(GHM), X, X)
+    # Use X for both X1 and X2 (PH, AFT, AH models will ignore one of them).
+    # Both formulas are set to the same applied formula so predict-on-newdata
+    # works regardless of which method (PH/AFT/AH/GH) the user picked.
+    return GeneralHazardModel(_method(GHM), TΔ[:,1], TΔ[:,2], _baseline(GHM), X, X;
+                              formula1 = f_applied, formula2 = f_applied)
 end
 
-# Internal helper: return the per-subject (c1, c2) multipliers for any method.
-function _c1c2(m::GeneralHazardModel{M,B}) where {M,B}
+# Internal helper: return the per-subject (c1, c2) multipliers for any method,
+# given explicit design matrices. Used for both training (m.X1/m.X2) and newdata.
+function _c1c2(m::GeneralHazardModel{M,B}, X1, X2) where {M,B}
     method = M()
-    return c1(method, m.X1, m.X2, m.β, m.α), c2(method, m.X1, m.X2, m.β, m.α)
+    return c1(method, X1, X2, m.β, m.α), c2(method, X1, X2, m.β, m.α)
+end
+
+# Convenience overload for training data.
+_c1c2(m::GeneralHazardModel) = _c1c2(m, m.X1, m.X2)
+
+# Apply the fit's stored formulas to `newdata` and return `(X1_new, X2_new)`.
+# Errors if the model was constructed without stored formulas (e.g. via the
+# direct positional constructor without the kw `formula1` / `formula2`).
+function _build_X_for_newdata(m::GeneralHazardModel, newdata::DataFrame)
+    if isnothing(m.formula1) || isnothing(m.formula2)
+        error("This GeneralHazardModel was constructed without stored formulas; predict-on-newdata is not available. Re-fit via `fit(GHM, @formula(...), df)` (or the two-formula variant for `GeneralHazard`) so the formulas are captured.")
+    end
+    X1_new = modelcols(m.formula1.rhs, newdata)
+    X2_new = modelcols(m.formula2.rhs, newdata)
+    return X1_new, X2_new
 end
 
 """
     predict_expected(m::GeneralHazardModel)
     predict_expected(m::GeneralHazardModel, t::Real)
     predict_expected(m::GeneralHazardModel, ts::AbstractVector)
+    predict_expected(m::GeneralHazardModel, newdata::DataFrame, t::Real)
+    predict_expected(m::GeneralHazardModel, newdata::DataFrame, ts::AbstractVector)
 
 Per-subject cumulative hazard `Λᵢ(t) = H₀(t · c1ᵢ) · c2ᵢ`, where `H₀` is the cumulative
 hazard of the baseline distribution and `(c1ᵢ, c2ᵢ)` are the method-specific time- and
@@ -261,6 +290,11 @@ Output shape:
   observed time `Tᵢ`;
 - `t::Real` → length-`n` vector at the scalar time;
 - `ts::AbstractVector` → `n × length(ts)` matrix.
+
+With `newdata::DataFrame` the design matrices are rebuilt by applying the fit's stored
+formula(s) — `newdata` must contain every predictor column referenced in the original
+`@formula(...)`. Newdata predict requires an explicit time argument (no "own time"
+default).
 """
 function predict_expected(m::GeneralHazardModel)
     cc1, cc2 = _c1c2(m)
@@ -282,17 +316,39 @@ function predict_expected(m::GeneralHazardModel, ts::AbstractVector)
     return out
 end
 
+function predict_expected(m::GeneralHazardModel, newdata::DataFrame, t::Real)
+    X1_new, X2_new = _build_X_for_newdata(m, newdata)
+    cc1, cc2 = _c1c2(m, X1_new, X2_new)
+    return (-logccdf.(m.baseline, t .* cc1)) .* cc2
+end
+
+function predict_expected(m::GeneralHazardModel, newdata::DataFrame, ts::AbstractVector)
+    X1_new, X2_new = _build_X_for_newdata(m, newdata)
+    cc1, cc2 = _c1c2(m, X1_new, X2_new)
+    n = length(cc1)
+    out = Matrix{Float64}(undef, n, length(ts))
+    @inbounds for j in eachindex(ts)
+        out[:, j] = (-logccdf.(m.baseline, ts[j] .* cc1)) .* cc2
+    end
+    return out
+end
+
 """
     predict_survival(m::GeneralHazardModel)
     predict_survival(m::GeneralHazardModel, t::Real)
     predict_survival(m::GeneralHazardModel, ts::AbstractVector)
+    predict_survival(m::GeneralHazardModel, newdata::DataFrame, t::Real)
+    predict_survival(m::GeneralHazardModel, newdata::DataFrame, ts::AbstractVector)
 
 Per-subject survival probability `Sᵢ(t) = exp(-Λᵢ(t))` derived from
-[`predict_expected`](@ref). Shapes match `predict_expected`.
+[`predict_expected`](@ref). Shapes match `predict_expected`; newdata variants
+require an explicit time argument.
 """
 predict_survival(m::GeneralHazardModel)                     = exp.(-predict_expected(m))
 predict_survival(m::GeneralHazardModel, t::Real)            = exp.(-predict_expected(m, t))
 predict_survival(m::GeneralHazardModel, ts::AbstractVector) = exp.(-predict_expected(m, ts))
+predict_survival(m::GeneralHazardModel, newdata::DataFrame, t::Real)            = exp.(-predict_expected(m, newdata, t))
+predict_survival(m::GeneralHazardModel, newdata::DataFrame, ts::AbstractVector) = exp.(-predict_expected(m, newdata, ts))
 
 function StatsBase.predict(m::GeneralHazardModel, type::Symbol=:survival)
     type == :survival && return predict_survival(m)
@@ -310,6 +366,23 @@ function StatsBase.predict(m::GeneralHazardModel, type::Symbol, ts::AbstractVect
     type == :survival && return predict_survival(m, ts)
     type == :expected && return predict_expected(m, ts)
     error("Time-indexed `predict` on GeneralHazardModel supports `:survival` and `:expected`, got `:$type`.")
+end
+
+function StatsBase.predict(m::GeneralHazardModel, type::Symbol, newdata::DataFrame)
+    type in (:survival, :expected) && error("`:$type` on newdata requires a time argument: predict(m, :$type, newdata, t).")
+    error("Unsupported predict type `:$type` for GeneralHazardModel on newdata. Supported: `:survival`, `:expected` (with a time argument).")
+end
+
+function StatsBase.predict(m::GeneralHazardModel, type::Symbol, newdata::DataFrame, t::Real)
+    type == :survival && return predict_survival(m, newdata, t)
+    type == :expected && return predict_expected(m, newdata, t)
+    error("Time-indexed `predict` on GeneralHazardModel newdata supports `:survival` and `:expected`, got `:$type`.")
+end
+
+function StatsBase.predict(m::GeneralHazardModel, type::Symbol, newdata::DataFrame, ts::AbstractVector)
+    type == :survival && return predict_survival(m, newdata, ts)
+    type == :expected && return predict_expected(m, newdata, ts)
+    error("Time-indexed `predict` on GeneralHazardModel newdata supports `:survival` and `:expected`, got `:$type`.")
 end
 
 """
