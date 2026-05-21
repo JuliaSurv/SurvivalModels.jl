@@ -126,6 +126,32 @@ The current version of the `simGH` command implements the following parametric b
 - [Weibull](https://en.wikipedia.org/wiki/Weibull_distribution) (Weibull) distribution. (only for AFT, PH, and AH models)
 
 
+### Prediction interface
+
+Once a `GeneralHazardModel` is fitted (or directly constructed), you can evaluate per-subject cumulative hazards and survival probabilities at user-supplied times. The four hazard structures share the same closed-form expression via the unified representation
+
+```math
+H(t \,|\, x) = H_0\!\left(t \cdot c_1(x)\right) \cdot c_2(x)
+```
+
+where ``H_0`` is the cumulative hazard of the baseline distribution and ``(c_1, c_2)`` are the method-specific time- and hazard-scale multipliers (`c1`/`c2` in the code). The survival is ``S(t \,|\, x) = \exp(-H(t \,|\, x))``.
+
+```julia
+predict(model, :survival)              # length-n vector, each subject at own Tᵢ
+predict(model, :expected)              # length-n vector of Λᵢ(Tᵢ)
+predict(model, :survival, t)           # length-n vector at scalar t
+predict(model, :expected, t)
+predict(model, :survival, ts)          # n × length(ts) matrix
+predict(model, :expected, ts)
+```
+
+The default no-arg form (`predict(model)` or `predict(model, :survival)`) evaluates each subject at their own observed time ``T_i``, matching the convention used by the Cox interface.
+
+```@docs
+SurvivalModels.predict_expected(::SurvivalModels.GeneralHazardModel)
+SurvivalModels.predict_survival(::SurvivalModels.GeneralHazardModel)
+```
+
 ### Simulating times to event from a general hazard structure with `simGH`
 
 The simGH command from the `HazReg.jl` Julia package allows one to simulate times to event from the following models:
