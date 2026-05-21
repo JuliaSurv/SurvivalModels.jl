@@ -128,7 +128,7 @@ The current version of the `simGH` command implements the following parametric b
 
 ### Prediction interface
 
-Once a [`GeneralHazardModel`](@ref) is fitted (or directly constructed), you can evaluate per-subject cumulative hazards and survival probabilities at user-supplied times. The four hazard structures share the same closed-form expression via the unified representation
+Once a `GeneralHazardModel` is fitted (or directly constructed), you can evaluate per-subject cumulative hazards and survival probabilities at user-supplied times. The four hazard structures share the same closed-form expression via the unified representation
 
 ```math
 H(t \,|\, x) = H_0\!\left(t \cdot c_1(x)\right) \cdot c_2(x)

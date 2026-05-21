@@ -290,7 +290,9 @@ predict(model, :survival, newdata, ts)
 
 ```@docs
 SurvivalModels.predict_expected(::SurvivalModels.Cox)
+SurvivalModels.predict_expected(::SurvivalModels.Cox, ::DataFrame, ::Real)
 SurvivalModels.predict_survival(::SurvivalModels.Cox)
+SurvivalModels.predict_survival(::SurvivalModels.Cox, ::DataFrame, ::Real)
 ```
 
 ### Example: Prediction on New Data
