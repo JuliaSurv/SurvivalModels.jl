@@ -588,3 +588,83 @@ end
     @test model_ah isa GeneralHazardModel{AHMethod, Weibull{Float64}}
     @test length(model_ah.α) == 2
 end
+
+
+@testitem "GeneralHazardModel predict shapes and consistency" begin
+    using Distributions, Random
+    using SurvivalModels: predict, ProportionalHazard, AcceleratedFaillureTime,
+                          AcceleratedHazard, GeneralHazard, predict_expected, predict_survival
+    using StableRNGs
+
+    rng = StableRNG(456)
+    n   = 25
+    T   = rand(rng, Exponential(2.0), n)
+    Δ   = rand(rng, Bool, n)
+    X1  = randn(rng, n, 2)
+    X2  = randn(rng, n, 2)
+
+    constructors = (ProportionalHazard, AcceleratedFaillureTime, AcceleratedHazard, GeneralHazard)
+    for ctor in constructors
+        m = ctor(T, Δ, Weibull(1.0, 2.0), X1, X2)
+
+        # Shapes
+        @test size(predict(m, :survival))                       == (n,)
+        @test size(predict(m, :expected))                       == (n,)
+        @test size(predict(m, :survival, 1.0))                  == (n,)
+        @test size(predict(m, :expected, 1.0))                  == (n,)
+        @test size(predict(m, :survival, [0.5, 1.0, 2.0]))      == (n, 3)
+        @test size(predict(m, :expected, [0.5, 1.0, 2.0]))      == (n, 3)
+
+        # Self-consistency: S = exp(-H) at both scalar and vector t
+        @test predict(m, :survival, 1.0)            ≈ exp.(-predict(m, :expected, 1.0))            rtol = 1e-12
+        @test predict(m, :survival, [0.5, 1.0, 2.0]) ≈ exp.(-predict(m, :expected, [0.5, 1.0, 2.0])) rtol = 1e-12
+
+        # No-arg form evaluates at each subject's own observed Tᵢ
+        no_arg_S = predict(m, :survival)
+        for i in 1:n
+            @test no_arg_S[i] ≈ predict(m, :survival, T[i])[i] rtol = 1e-12
+        end
+
+        # S(t) ∈ [0, 1] and non-increasing in t
+        S_grid = predict(m, :survival, [0.1, 0.5, 1.0, 2.0, 5.0, 20.0])
+        @test all(0 .≤ S_grid .≤ 1 .+ 1e-12)
+        @test all(diff(S_grid, dims = 2) .≤ 1e-12)
+
+        # S(0) = 1 exactly (for distributions with support starting at 0+)
+        @test predict(m, :survival, 0.0) ≈ ones(n) atol = 1e-12
+
+        # Misuse: predict on an unsupported type
+        @test_throws ErrorException predict(m, :lp, 1.0)
+        @test_throws ErrorException predict(m, :risk)
+    end
+end
+
+
+@testitem "ProportionalHazard with β = 0 reduces to baseline survival" begin
+    using Distributions, Random
+    using SurvivalModels: predict, ProportionalHazard, PHMethod, GeneralHazardModel
+    using StableRNGs
+
+    rng = StableRNG(789)
+    n   = 8
+    T   = rand(rng, Exponential(2.0), n)
+    Δ   = rand(rng, Bool, n)
+    X1  = randn(rng, n, 2)
+    X2  = randn(rng, n, 2)
+    baseline = Weibull(1.0, 2.0)
+
+    # Direct construction with α = β = 0 (no covariate effect).
+    m = ProportionalHazard(T, Δ, baseline, X1, X2, zeros(2), zeros(2))
+
+    # S(t | x) should reduce to ccdf(baseline, t) regardless of x.
+    for t in (0.5, 1.0, 2.5, 5.0)
+        expected = ccdf(baseline, t)
+        @test all(predict(m, :survival, t) .≈ expected) skip = false
+    end
+
+    # And the matrix form should be constant across subjects at each t.
+    S_mat = predict(m, :survival, [0.5, 1.0, 2.5, 5.0])
+    for j in 1:size(S_mat, 2)
+        @test all(S_mat[:, j] .≈ S_mat[1, j])
+    end
+end

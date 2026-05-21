@@ -240,6 +240,78 @@ function StatsBase.fit(::Type{GHM},
     return GeneralHazardModel(_method(GHM), TΔ[:,1], TΔ[:,2], _baseline(GHM), X, X)
 end
 
+# Internal helper: return the per-subject (c1, c2) multipliers for any method.
+function _c1c2(m::GeneralHazardModel{M,B}) where {M,B}
+    method = M()
+    return c1(method, m.X1, m.X2, m.β, m.α), c2(method, m.X1, m.X2, m.β, m.α)
+end
+
+"""
+    predict_expected(m::GeneralHazardModel)
+    predict_expected(m::GeneralHazardModel, t::Real)
+    predict_expected(m::GeneralHazardModel, ts::AbstractVector)
+
+Per-subject cumulative hazard `Λᵢ(t) = H₀(t · c1ᵢ) · c2ᵢ`, where `H₀` is the cumulative
+hazard of the baseline distribution and `(c1ᵢ, c2ᵢ)` are the method-specific time- and
+hazard-scale multipliers (PH, AFT, AH, GH share the same closed form via the unified
+`H(t|x) = H₀(t · c1) · c2` representation).
+
+Output shape:
+- no time argument → length-`n` vector with each subject evaluated at their own
+  observed time `Tᵢ`;
+- `t::Real` → length-`n` vector at the scalar time;
+- `ts::AbstractVector` → `n × length(ts)` matrix.
+"""
+function predict_expected(m::GeneralHazardModel)
+    cc1, cc2 = _c1c2(m)
+    return [(-logccdf(m.baseline, m.T[i] * cc1[i])) * cc2[i] for i in eachindex(m.T)]
+end
+
+function predict_expected(m::GeneralHazardModel, t::Real)
+    cc1, cc2 = _c1c2(m)
+    return (-logccdf.(m.baseline, t .* cc1)) .* cc2
+end
+
+function predict_expected(m::GeneralHazardModel, ts::AbstractVector)
+    cc1, cc2 = _c1c2(m)
+    n = length(cc1)
+    out = Matrix{Float64}(undef, n, length(ts))
+    @inbounds for j in eachindex(ts)
+        out[:, j] = (-logccdf.(m.baseline, ts[j] .* cc1)) .* cc2
+    end
+    return out
+end
+
+"""
+    predict_survival(m::GeneralHazardModel)
+    predict_survival(m::GeneralHazardModel, t::Real)
+    predict_survival(m::GeneralHazardModel, ts::AbstractVector)
+
+Per-subject survival probability `Sᵢ(t) = exp(-Λᵢ(t))` derived from
+[`predict_expected`](@ref). Shapes match `predict_expected`.
+"""
+predict_survival(m::GeneralHazardModel)                     = exp.(-predict_expected(m))
+predict_survival(m::GeneralHazardModel, t::Real)            = exp.(-predict_expected(m, t))
+predict_survival(m::GeneralHazardModel, ts::AbstractVector) = exp.(-predict_expected(m, ts))
+
+function StatsBase.predict(m::GeneralHazardModel, type::Symbol=:survival)
+    type == :survival && return predict_survival(m)
+    type == :expected && return predict_expected(m)
+    error("Unsupported predict type `:$type` for GeneralHazardModel. Supported: `:survival`, `:expected`.")
+end
+
+function StatsBase.predict(m::GeneralHazardModel, type::Symbol, t::Real)
+    type == :survival && return predict_survival(m, t)
+    type == :expected && return predict_expected(m, t)
+    error("Time-indexed `predict` on GeneralHazardModel supports `:survival` and `:expected`, got `:$type`.")
+end
+
+function StatsBase.predict(m::GeneralHazardModel, type::Symbol, ts::AbstractVector)
+    type == :survival && return predict_survival(m, ts)
+    type == :expected && return predict_expected(m, ts)
+    error("Time-indexed `predict` on GeneralHazardModel supports `:survival` and `:expected`, got `:$type`.")
+end
+
 """
     simGH(n, model::GeneralHazardModel)
 

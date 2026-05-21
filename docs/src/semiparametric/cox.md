@@ -289,11 +289,10 @@ predict(model, :survival, newdata, ts)
 `:expected` and `:survival` on `newdata` **require** an explicit time argument — there is no "own time" default for arbitrary new subjects. Passing a time with `:lp` / `:risk` / `:terms` errors.
 
 ```@docs
-SurvivalModels.predict_expected
-```
-
-```@docs
-SurvivalModels.predict_survival
+SurvivalModels.predict_expected(::SurvivalModels.Cox)
+SurvivalModels.predict_expected(::SurvivalModels.Cox, ::DataFrame, ::Real)
+SurvivalModels.predict_survival(::SurvivalModels.Cox)
+SurvivalModels.predict_survival(::SurvivalModels.Cox, ::DataFrame, ::Real)
 ```
 
 ### Example: Prediction on New Data
