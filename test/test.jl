@@ -262,6 +262,99 @@ end
     @test_throws ErrorException predict(bare, :lp, df)
 end
 
+
+@testitem "Verify harrells_c" begin
+    using SurvivalModels: harrells_c
+
+    # Perfect concordance: higher risk = earlier event
+    T = [1.0, 2.0, 3.0, 4.0]
+    Δ = [true, true, true, true]
+    @test harrells_c(T, Δ, [4.0, 3.0, 2.0, 1.0]) == 1.0
+
+    # Reversed: every comparable pair is discordant
+    @test harrells_c(T, Δ, [1.0, 2.0, 3.0, 4.0]) == 0.0
+
+    # All-tied risks: every pair is tied → C = 0.5 by the tied-half-credit convention
+    @test harrells_c(T, Δ, [1.0, 1.0, 1.0, 1.0]) == 0.5
+
+    # Censored subjects don't form permissible pairs with later observations:
+    # T = [1, 2, 3], Δ = [false, true, true]. Only pair (subject-2, subject-3) is permissible.
+    T_c = [1.0, 2.0, 3.0]
+    Δ_c = [false, true, true]
+    @test harrells_c(T_c, Δ_c, [0.0, 2.0, 1.0]) == 1.0       # subject 2 has higher risk → concordant
+    @test harrells_c(T_c, Δ_c, [0.0, 1.0, 2.0]) == 0.0       # subject 2 has lower risk → discordant
+    @test harrells_c(T_c, Δ_c, [0.0, 1.0, 1.0]) == 0.5       # tied risks on the single permissible pair
+    @test harrells_c(T_c, Δ_c, [9.0, 2.0, 1.0]) == 1.0       # subject 1's risk irrelevant — no permissible pair involves it
+
+    # Cross-check against R's `survival::concordance` on the ovarian fixture
+    using RDatasets
+    ovarian = dataset("survival", "ovarian")
+    model = fit(Cox, @formula(Surv(FUTime, FUStat) ~ Age + ECOG_PS), ovarian)
+    @test harrells_c(model) ≈ 0.7844 rtol = 1e-3
+end
+
+
+@testitem "Verify brier_score" begin
+    using DataFrames
+    using SurvivalModels: brier_score, integrated_brier_score, predict
+
+    # No-censoring degenerate case: all subjects had events. Ĝ(t) ≡ 1, so the IPCW
+    # formula reduces to the standard squared error against the at-risk indicator.
+    T = [1.0, 2.0, 3.0, 4.0]
+    Δ = [true, true, true, true]
+    Ŝ = [0.9, 0.6, 0.3, 0.1]
+    # At t* = 2.5: subjects 1, 2 had events ≤ t* (Y=0), subjects 3, 4 still at risk (Y=1)
+    expected = ((0.0 - 0.9)^2 + (0.0 - 0.6)^2 + (1.0 - 0.3)^2 + (1.0 - 0.1)^2) / 4
+    @test brier_score(T, Δ, Ŝ, 2.5) ≈ expected rtol = 1e-10
+
+    # BS(t* = 0): every subject is still at risk (T > 0), Ŝ ≈ 1, so weights ≈ (1-1)² = 0
+    # Use a Cox fit so the predicted Ŝ at t=0 is exactly 1.
+    using RDatasets
+    ovarian = dataset("survival", "ovarian")
+    model = fit(Cox, @formula(Surv(FUTime, FUStat) ~ Age + ECOG_PS), ovarian)
+    @test brier_score(model, 0.0) ≈ 0.0 atol = 1e-12
+
+    # Newdata path on the training df matches the no-newdata path
+    @test brier_score(model, 500.0)               ≈ brier_score(model, ovarian, 500.0)     rtol = 1e-10
+    @test brier_score(model, [200.0, 500.0])      ≈ brier_score(model, ovarian, [200.0, 500.0]) rtol = 1e-10
+
+    # Vector-ts API returns the same values as a loop of scalar-t calls
+    ts = [100.0, 500.0, 800.0]
+    @test brier_score(model, ts) ≈ [brier_score(model, t) for t in ts] rtol = 1e-10
+
+    # Brier in [0, 1] for typical horizons on a well-behaved fixture
+    bs_grid = brier_score(model, [100.0, 500.0, 1000.0])
+    @test all(0 .≤ bs_grid .≤ 1)
+
+    # Integrated Brier: trapezoid convergence — refining the grid should not move IBS much
+    ibs_100 = integrated_brier_score(model; t_max = 1200.0, n_grid = 100)
+    ibs_200 = integrated_brier_score(model; t_max = 1200.0, n_grid = 200)
+    @test ibs_100 ≈ ibs_200 rtol = 1e-2
+    @test 0 ≤ ibs_100 ≤ 1
+
+    # IBS on training df via newdata path matches no-newdata
+    @test integrated_brier_score(model; t_max = 1200.0) ≈
+          integrated_brier_score(model, ovarian; t_max = 1200.0) rtol = 1e-10
+end
+
+
+@testitem "brier_score errors without stored formula" begin
+    using DataFrames
+    using SurvivalModels: brier_score, CoxDefault, Cox
+
+    time   = [1.0, 3.0, 5.0, 6.0, 2.0, 7.0, 9.0, 11.0]
+    status = [true, false, true, true, true, false, true, true]
+    sex    = Symbol.([1, 1, 1, 1, 0, 0, 0, 0])
+    age    = [57, 52, 48, 42, 39, 31, 26, 22]
+    df     = DataFrame(time = time, status = status, sex = sex, age = age)
+
+    X = hcat(age, [s == Symbol(1) ? 1.0 : 0.0 for s in sex])
+    worker = CoxDefault(time, Bool.(status), X)
+    bare = Cox(worker, [:age, :sex], [:continuous, :categorical])
+
+    @test_throws ErrorException brier_score(bare, df, 5.0)
+end
+
 @testitem "Verify the correctness of the KaplanMeier implementation" begin
     using SurvivalModels: KaplanMeier
 
