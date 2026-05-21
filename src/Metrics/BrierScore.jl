@@ -28,8 +28,8 @@ end
     brier_score(C::Cox, newdata::DataFrame, ts::AbstractVector)
 
 Inverse-probability-of-censoring-weighted (IPCW) Brier score per Graf et al. 1999. See
-the [Brier Score](@ref) section of the Cox documentation for the mathematical
-definition.
+the [Model Evaluation: Brier Score](@ref) section of the Cox documentation for the
+mathematical definition.
 
 The low-level form takes a vector of observed times, an event-indicator vector, a
 vector of predicted survival probabilities `Ŝᵢ(t) ≈ predicted_survival[i]`, and a
@@ -96,8 +96,8 @@ end
     integrated_brier_score(C::Cox, newdata::DataFrame; t_max, n_grid=100)
 
 Trapezoid-integrated [`brier_score`](@ref) over `[0, t_max]`, divided by `t_max`. See
-the [Brier Score](@ref) section of the Cox documentation for the mathematical
-definition. `n_grid` controls the resolution of the uniform grid on which the trapezoid
+the [Model Evaluation: Brier Score](@ref) section of the Cox documentation for the
+mathematical definition. `n_grid` controls the resolution of the uniform grid on which the trapezoid
 rule is applied.
 """
 function integrated_brier_score(C::Cox; t_max::Real, n_grid::Integer=100)

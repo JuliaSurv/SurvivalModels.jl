@@ -704,14 +704,16 @@ SurvivalModels.brier_score
 SurvivalModels.integrated_brier_score
 ```
 
-Quick example on the `colon` fixture:
+Quick example on the `ovarian` fixture (continuous covariates):
 
 ```@example 2
-SurvivalModels.brier_score(model_colon, [1000.0, 2000.0, 3000.0])
+ovarian = dataset("survival", "ovarian")
+model_ov = fit(Cox, @formula(Surv(FUTime, FUStat) ~ Age + ECOG_PS), ovarian)
+SurvivalModels.brier_score(model_ov, [100.0, 300.0, 600.0])
 ```
 
 ```@example 2
-SurvivalModels.integrated_brier_score(model_colon; t_max = 3000.0)
+SurvivalModels.integrated_brier_score(model_ov; t_max = 800.0)
 ```
 
 
