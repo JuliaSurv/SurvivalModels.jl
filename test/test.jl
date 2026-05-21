@@ -708,3 +708,75 @@ end
         @test all(S_mat[:, j] .≈ S_mat[1, j])
     end
 end
+
+
+@testitem "GeneralHazardModel predict on newdata" begin
+    using DataFrames, Distributions, Random
+    using SurvivalModels: predict, ProportionalHazard, AcceleratedFaillureTime,
+                          AcceleratedHazard, GeneralHazard, GeneralHazardModel, PHMethod
+    using StableRNGs
+
+    rng = StableRNG(2024)
+    n   = 30
+    df  = DataFrame(
+        time   = rand(rng, Exponential(2.0), n),
+        status = rand(rng, Bool, n),
+        x1     = randn(rng, n),
+        x2     = randn(rng, n),
+    )
+
+    # Single-formula fits exercise PH/AFT/AH (all four are routed through the same
+    # internal path with both formulas set to the same applied formula).
+    single_formula_types = (
+        ProportionalHazard{Weibull},
+        AcceleratedFaillureTime{Weibull},
+        AcceleratedHazard{Weibull},
+    )
+    for T in single_formula_types
+        m = fit(T, @formula(Surv(time, status) ~ x1 + x2), df)
+
+        # Self-consistency: newdata-on-training matches the no-newdata path.
+        @test predict(m, :survival, df, 1.0)             ≈ predict(m, :survival, 1.0)             rtol = 1e-10
+        @test predict(m, :expected, df, 1.0)             ≈ predict(m, :expected, 1.0)             rtol = 1e-10
+        @test predict(m, :survival, df, [0.5, 1.0, 2.0]) ≈ predict(m, :survival, [0.5, 1.0, 2.0]) rtol = 1e-10
+
+        # Held-out slice shapes.
+        held = df[1:5, :]
+        @test size(predict(m, :survival, held, 1.0))             == (5,)
+        @test size(predict(m, :expected, held, 1.0))             == (5,)
+        @test size(predict(m, :survival, held, [0.5, 1.0, 2.0])) == (5, 3)
+        @test size(predict(m, :expected, held, [0.5, 1.0, 2.0])) == (5, 3)
+
+        # `S = exp(-H)` consistency on newdata.
+        @test predict(m, :survival, held, 1.0) ≈ exp.(-predict(m, :expected, held, 1.0)) rtol = 1e-12
+
+        # `S(t)` ∈ [0,1] and non-increasing in t on newdata.
+        S = predict(m, :survival, held, [0.5, 1.0, 2.0, 5.0])
+        @test all(0 .≤ S .≤ 1 .+ 1e-12)
+        @test all(diff(S, dims = 2) .≤ 1e-12)
+
+        # Newdata predict requires an explicit time argument.
+        @test_throws ErrorException predict(m, :survival, held)
+        @test_throws ErrorException predict(m, :expected, held)
+
+        # Unsupported types error.
+        @test_throws ErrorException predict(m, :lp, held, 1.0)
+    end
+
+    # Two-formula GH fit captures both formulas distinctly.
+    m_gh = fit(GeneralHazard{Weibull},
+               @formula(Surv(time, status) ~ x1 + x2),
+               @formula(Surv(time, status) ~ x1),
+               df)
+    @test predict(m_gh, :survival, df, 1.0) ≈ predict(m_gh, :survival, 1.0) rtol = 1e-10
+    @test size(predict(m_gh, :expected, df[1:5, :], [1.0, 2.0])) == (5, 2)
+
+    # Direct construction without formulas should error on newdata predict.
+    n2  = 20
+    T2  = rand(rng, Exponential(2.0), n2)
+    Δ2  = rand(rng, Bool, n2)
+    X12 = randn(rng, n2, 2)
+    X22 = randn(rng, n2, 2)
+    bare = ProportionalHazard(T2, Δ2, Weibull(1.0, 2.0), X12, X22, zeros(2), zeros(2))
+    @test_throws ErrorException predict(bare, :survival, df, 1.0)
+end

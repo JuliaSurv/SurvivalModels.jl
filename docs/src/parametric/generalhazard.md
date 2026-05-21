@@ -147,6 +147,19 @@ predict(model, :expected, ts)
 
 The default no-arg form (`predict(model)` or `predict(model, :survival)`) evaluates each subject at their own observed time ``T_i``, matching the convention used by the Cox interface.
 
+#### Predict on new data
+
+Each prediction also accepts a `newdata::DataFrame` argument. The fit's stored formula(s) are re-applied to `newdata` to rebuild the design matrices ``X_1``, ``X_2``, so `newdata` must contain every predictor column referenced in the original `@formula(...)`. For models fit with `fit(GHM, formula, df)` (one formula), the same formula is stored twice and used for both ``X_1`` and ``X_2``; for `fit(GeneralHazard, formula1, formula2, df)` the two are stored separately.
+
+```julia
+predict(model, :survival, newdata, t)        # length-n_new at scalar t
+predict(model, :expected, newdata, t)
+predict(model, :survival, newdata, ts)       # n_new × length(ts) matrix
+predict(model, :expected, newdata, ts)
+```
+
+Newdata predict **requires** an explicit time argument — there is no "own time" default for arbitrary new subjects. Models built directly via the positional constructor (without the `formula1` / `formula2` keyword arguments) do not have stored formulas and will error on newdata predict.
+
 ```@docs
 SurvivalModels.predict_expected(::SurvivalModels.GeneralHazardModel)
 SurvivalModels.predict_survival(::SurvivalModels.GeneralHazardModel)
