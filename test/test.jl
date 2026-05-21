@@ -301,6 +301,8 @@ end
 
     # Newdata path also exercises predict_lp through _build_X_for_newdata.
     @test size(predict(model, :lp, df)) == (n,)
+end
+
 @testitem "Verify harrells_c" begin
     using SurvivalModels: harrells_c
 
