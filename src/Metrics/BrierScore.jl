@@ -26,6 +26,10 @@ end
     brier_score(C::Cox, ts::AbstractVector)
     brier_score(C::Cox, newdata::DataFrame, t)
     brier_score(C::Cox, newdata::DataFrame, ts::AbstractVector)
+    brier_score(m::GeneralHazardModel, t)
+    brier_score(m::GeneralHazardModel, ts::AbstractVector)
+    brier_score(m::GeneralHazardModel, newdata::DataFrame, t)
+    brier_score(m::GeneralHazardModel, newdata::DataFrame, ts::AbstractVector)
 
 Inverse-probability-of-censoring-weighted (IPCW) Brier score per Graf et al. 1999. See
 the [Model Evaluation: Brier Score](@ref) section of the Cox documentation for the
@@ -36,10 +40,11 @@ vector of predicted survival probabilities `Ŝᵢ(t) ≈ predicted_survival[i]`,
 scalar evaluation time `t`. The censoring distribution `Ĝ` is estimated internally
 by a [`KaplanMeier`](@ref) fit on `(times, .!statuses)`.
 
-The `C::Cox` forms compute the predicted survival via `predict(C, :survival, t)` on
-training data, or `predict(C, :survival, newdata, t)` on new data. Vector-`ts` forms
-return a `Vector{Float64}` of Brier scores, one per requested time; the censoring
-KM is fit once per call.
+The `C::Cox` and `m::GeneralHazardModel` convenience forms compute the predicted
+survival via `predict(model, :survival, t)` on training data, or
+`predict(model, :survival, newdata, t)` on new data, then forward to the low-level
+formula. Vector-`ts` forms return a `Vector{Float64}` of Brier scores, one per
+requested time; the censoring KM is fit once per call.
 """
 function brier_score(times, statuses, predicted_survival, t::Real)
     n = length(times)
@@ -94,11 +99,13 @@ end
 """
     integrated_brier_score(C::Cox; t_max, n_grid=100)
     integrated_brier_score(C::Cox, newdata::DataFrame; t_max, n_grid=100)
+    integrated_brier_score(m::GeneralHazardModel; t_max, n_grid=100)
+    integrated_brier_score(m::GeneralHazardModel, newdata::DataFrame; t_max, n_grid=100)
 
 Trapezoid-integrated [`brier_score`](@ref) over `[0, t_max]`, divided by `t_max`. See
 the [Model Evaluation: Brier Score](@ref) section of the Cox documentation for the
-mathematical definition. `n_grid` controls the resolution of the uniform grid on which the trapezoid
-rule is applied.
+mathematical definition. `n_grid` controls the resolution of the uniform grid on which
+the trapezoid rule is applied.
 """
 function integrated_brier_score(C::Cox; t_max::Real, n_grid::Integer=100)
     grid = collect(range(0.0, Float64(t_max); length=n_grid))
@@ -108,4 +115,48 @@ end
 function integrated_brier_score(C::Cox, newdata::DataFrame; t_max::Real, n_grid::Integer=100)
     grid = collect(range(0.0, Float64(t_max); length=n_grid))
     return _trapezoid(grid, brier_score(C, newdata, grid)) / t_max
+end
+
+# ─── GeneralHazardModel convenience overloads ────────────────────────────────
+# Same shape as the Cox versions; the heavy lifting (IPCW formula + censoring KM)
+# is in `_brier_score_at`. The only model-specific work is producing the
+# predicted survival probabilities — which `predict_survival(m, ...)` already
+# does for both training and newdata paths.
+
+function brier_score(m::GeneralHazardModel, t::Real)
+    return brier_score(m.T, m.Δ, predict_survival(m, t), t)
+end
+
+function brier_score(m::GeneralHazardModel, ts::AbstractVector)
+    cens_km = KaplanMeier(m.T, .!m.Δ)
+    Ŝ = predict_survival(m, ts)   # n × length(ts)
+    return [_brier_score_at(m.T, m.Δ, view(Ŝ, :, k), ts[k], cens_km) for k in eachindex(ts)]
+end
+
+function brier_score(m::GeneralHazardModel, newdata::DataFrame, t::Real)
+    isnothing(m.formula1) && error("`brier_score` on newdata requires a stored formula. Re-fit via `fit(GHM, @formula(...), df)`.")
+    resp = modelcols(m.formula1.lhs, newdata)
+    T = Float64.(resp[:, 1])
+    Δ = Bool.(resp[:, 2])
+    return brier_score(T, Δ, predict_survival(m, newdata, t), t)
+end
+
+function brier_score(m::GeneralHazardModel, newdata::DataFrame, ts::AbstractVector)
+    isnothing(m.formula1) && error("`brier_score` on newdata requires a stored formula. Re-fit via `fit(GHM, @formula(...), df)`.")
+    resp = modelcols(m.formula1.lhs, newdata)
+    T = Float64.(resp[:, 1])
+    Δ = Bool.(resp[:, 2])
+    cens_km = KaplanMeier(T, .!Δ)
+    Ŝ = predict_survival(m, newdata, ts)
+    return [_brier_score_at(T, Δ, view(Ŝ, :, k), ts[k], cens_km) for k in eachindex(ts)]
+end
+
+function integrated_brier_score(m::GeneralHazardModel; t_max::Real, n_grid::Integer=100)
+    grid = collect(range(0.0, Float64(t_max); length=n_grid))
+    return _trapezoid(grid, brier_score(m, grid)) / t_max
+end
+
+function integrated_brier_score(m::GeneralHazardModel, newdata::DataFrame; t_max::Real, n_grid::Integer=100)
+    grid = collect(range(0.0, Float64(t_max); length=n_grid))
+    return _trapezoid(grid, brier_score(m, newdata, grid)) / t_max
 end
