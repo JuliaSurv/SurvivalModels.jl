@@ -165,6 +165,10 @@ SurvivalModels.predict_expected(::SurvivalModels.GeneralHazardModel)
 SurvivalModels.predict_survival(::SurvivalModels.GeneralHazardModel)
 ```
 
+#### Brier score
+
+Inverse-probability-of-censoring-weighted Brier score (Graf et al. 1999) and its integrated form work for `GeneralHazardModel` through the same `brier_score(model, ...)` / `integrated_brier_score(model, ...)` API used for Cox. See the [Model Evaluation: Brier Score](@ref) section of the Cox documentation for the mathematical definition and signature list.
+
 ### Simulating times to event from a general hazard structure with `simGH`
 
 The simGH command from the `HazReg.jl` Julia package allows one to simulate times to event from the following models:

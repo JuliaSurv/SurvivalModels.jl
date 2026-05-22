@@ -395,6 +395,84 @@ end
     @test_throws ErrorException brier_score(bare, df, 5.0)
 end
 
+
+@testitem "brier_score for GeneralHazardModel" begin
+    using DataFrames, Distributions, Random
+    using SurvivalModels: brier_score, integrated_brier_score, predict_survival,
+                          ProportionalHazard, AcceleratedFaillureTime,
+                          AcceleratedHazard, GeneralHazard
+    using StableRNGs
+
+    rng = StableRNG(2025)
+    n   = 30
+    df  = DataFrame(
+        time   = rand(rng, Exponential(2.0), n),
+        status = rand(rng, Bool, n),
+        x1     = randn(rng, n),
+        x2     = randn(rng, n),
+    )
+
+    # All four method types route through the same overloads. PH stands in for the
+    # group; the GH path is exercised separately below for the two-formula fit.
+    single_formula_types = (
+        ProportionalHazard{Weibull},
+        AcceleratedFaillureTime{Weibull},
+        AcceleratedHazard{Weibull},
+    )
+    for T in single_formula_types
+        m = fit(T, @formula(Surv(time, status) ~ x1 + x2), df)
+
+        # Self-consistency: training-data convenience equals the low-level form.
+        @test brier_score(m, 1.0) ≈ brier_score(m.T, m.Δ, predict_survival(m, 1.0), 1.0)
+
+        # Vector-ts matches a loop of scalar-t calls.
+        ts = [0.5, 1.0, 2.0]
+        @test brier_score(m, ts) ≈ [brier_score(m, t) for t in ts] rtol = 1e-12
+
+        # Newdata-on-training equals no-newdata.
+        @test brier_score(m, 1.0)              ≈ brier_score(m, df, 1.0)              rtol = 1e-10
+        @test brier_score(m, [0.5, 1.0, 2.0])  ≈ brier_score(m, df, [0.5, 1.0, 2.0])  rtol = 1e-10
+
+        # Brier ∈ [0, 1] on a typical horizon.
+        @test all(0 .≤ brier_score(m, [0.5, 1.0, 2.0]) .≤ 1)
+
+        # Integrated Brier convergence and newdata-equals-training.
+        ibs_100 = integrated_brier_score(m; t_max = 4.0, n_grid = 100)
+        ibs_200 = integrated_brier_score(m; t_max = 4.0, n_grid = 200)
+        @test ibs_100 ≈ ibs_200 rtol = 1e-2
+        @test ibs_100 ≈ integrated_brier_score(m, df; t_max = 4.0) rtol = 1e-10
+    end
+
+    # Two-formula GH fit
+    m_gh = fit(GeneralHazard{Weibull},
+               @formula(Surv(time, status) ~ x1 + x2),
+               @formula(Surv(time, status) ~ x1),
+               df)
+    @test brier_score(m_gh, 1.0)             ≈ brier_score(m_gh, df, 1.0)             rtol = 1e-10
+    @test brier_score(m_gh, [0.5, 1.0, 2.0]) ≈ brier_score(m_gh, df, [0.5, 1.0, 2.0]) rtol = 1e-10
+end
+
+
+@testitem "GHM brier_score errors without stored formula" begin
+    using DataFrames, Distributions, Random
+    using SurvivalModels: brier_score, ProportionalHazard
+    using StableRNGs
+
+    rng = StableRNG(99)
+    n   = 20
+    T   = rand(rng, Exponential(2.0), n)
+    Δ   = rand(rng, Bool, n)
+    X1  = randn(rng, n, 2)
+    X2  = randn(rng, n, 2)
+    df  = DataFrame(time = T, status = Δ, x1 = X1[:, 1], x2 = X1[:, 2])
+
+    # Direct positional constructor — no formulas captured.
+    bare = ProportionalHazard(T, Δ, Weibull(1.0, 2.0), X1, X2, zeros(2), zeros(2))
+
+    @test_throws ErrorException brier_score(bare, df, 1.0)
+    @test_throws ErrorException brier_score(bare, df, [0.5, 1.0])
+end
+
 @testitem "Verify the correctness of the KaplanMeier implementation" begin
     using SurvivalModels: KaplanMeier
 
