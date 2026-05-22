@@ -352,6 +352,43 @@ end
     @test size(predict(model, :lp, df)) == (n,)
 end
 
+
+@testitem "Cox predict on multi-level categorical matches R (colon)" begin
+    # R cross-check for the fix in #53. The `colon` fixture's `rx` column is a
+    # 3-level factor — previously the design-matrix-column / formula-term length
+    # mismatch crashed every predict path that goes through `predict_lp`'s
+    # centring loop. With #53 in place, the predict outputs are well-defined and
+    # this testitem pins them against R's `coxph` reference.
+    #
+    # R values from:
+    #   library(survival); data(colon)
+    #   fit <- coxph(Surv(time, status) ~ age + rx, data = colon, ties = "breslow")
+    #   options(digits = 12)
+    #   idx <- c(1, 50, 200, 800); nd <- colon[idx, ]
+    #   coef(fit); predict(fit, newdata = nd, type = "lp"); predict(fit, newdata = nd, type = "risk")
+    using DataFrames, RDatasets
+    using SurvivalModels: predict
+
+    colon = dataset("survival", "colon")
+    colon.Time = Float64.(colon.Time)
+    colon.Status = Bool.(colon.Status)
+    model = fit(Cox, @formula(Surv(Time, Status) ~ Age + Rx), colon)
+
+    R_coef = [-0.00205614120475, -0.0200487755444, -0.43928902633]
+    @test model.β ≈ R_coef rtol = 1e-4
+
+    idx = [1, 50, 200, 800]
+    nd  = colon[idx, :]
+
+    R_lp   = [-0.404839254692, -0.46035506722,  0.00360765356699, -0.468579632039]
+    R_risk = [ 0.667084032869,  0.631059537167, 1.00361416898,     0.625890632233]
+
+    @test predict(model, :lp)[idx]   ≈ R_lp   rtol = 1e-4
+    @test predict(model, :lp, nd)    ≈ R_lp   rtol = 1e-4
+    @test predict(model, :risk)[idx] ≈ R_risk rtol = 1e-4
+    @test predict(model, :risk, nd)  ≈ R_risk rtol = 1e-4
+end
+
 @testitem "Verify harrells_c" begin
     using SurvivalModels: harrells_c
 
