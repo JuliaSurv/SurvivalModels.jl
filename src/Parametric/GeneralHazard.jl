@@ -77,7 +77,7 @@ struct GeneralHazardModel{Method, B}
                                 formula1::Union{FormulaTerm, Nothing}=nothing,
                                 formula2::Union{FormulaTerm, Nothing}=nothing) where {Method<:AbstractGHMethod}
         npd, p, q = length(Distributions.params(baseline)), size(X1,2), size(X2,2)
-        init = zeros(npd+p+q)
+        init = vcat(_initial_baseline_log_params(baseline, T), zeros(p + q))
         base_T = typeof(baseline).name.wrapper
         Δ = Bool.(Δ)
         function mloglik(par::Vector)
@@ -99,6 +99,42 @@ end
 _method(::Type{GeneralHazardModel{M,B}}) where {M,B} = M()
 _baseline(::Type{GeneralHazardModel{M,B}}) where {M,B} = B()
 _method(::Type{GeneralHazardModel{M}}) where {M} = M()
+
+"""
+    _initial_baseline_log_params(baseline, T) -> Vector{Float64}
+
+Seed the optimizer's log-parameter vector for the baseline distribution
+of [`GeneralHazardModel`](@ref). For baselines where `Distributions.fit_mle`
+exists and returns strictly positive parameters on the (marginal) event
+times, use those as the seed; for the rest, anchor the last (conventionally
+scale-like) parameter to `log(median(T))` and leave the rest at `log(1) = 0`.
+
+The zeros-init this replaces puts e.g. `Weibull(1, 1)` on data with event
+times in 10²–10⁴, putting the log-likelihood in a NaN region and erroring
+out (or, before the NaN check, silently returning `β = 0`). See issue #60.
+
+Censoring is ignored for the seed — it's a starting point, not the final
+estimate. The joint optimizer subsequently refines `α`, `β`, and the
+baseline together.
+"""
+_initial_baseline_log_params(baseline::Distribution, T) = _scale_anchored_init(baseline, T)
+
+# Distributions.jl ships `fit_mle` for these four; on positive event-time
+# data the fitted params are all positive, so taking `log` is well-defined.
+_initial_baseline_log_params(::Weibull,     T) = _log_fit_params(Weibull,     T)
+_initial_baseline_log_params(::LogNormal,   T) = _log_fit_params(LogNormal,   T)
+_initial_baseline_log_params(::Normal,      T) = _log_fit_params(Normal,      T)
+_initial_baseline_log_params(::Exponential, T) = _log_fit_params(Exponential, T)
+
+_log_fit_params(B::Type{<:Distribution}, T) =
+    log.(collect(Float64, Distributions.params(Distributions.fit_mle(B, T))))
+
+function _scale_anchored_init(baseline::Distribution, T)
+    npd = length(Distributions.params(baseline))
+    init = zeros(npd)
+    npd > 0 && (init[npd] = log(median(T)))
+    return init
+end
 
 """
     ProportionalHazard(T, Δ, baseline, X1, X2)
