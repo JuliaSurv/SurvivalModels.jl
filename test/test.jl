@@ -944,3 +944,43 @@ end
     bare = ProportionalHazard(T2, Δ2, Weibull(1.0, 2.0), X12, X22, zeros(2), zeros(2))
     @test_throws ErrorException predict(bare, :survival, df, 1.0)
 end
+
+@testitem "GeneralHazardModel converges on day-scale ovarian (issue #60)" begin
+    # Regression test: before the data-aware init, the optimizer was seeded at
+    # `zeros(npd + p + q)`, which puts the baseline at e.g. `Weibull(1, 1)`.
+    # On ovarian (`futime ~ 60..1227`), that init evaluates the log-likelihood
+    # in a NaN region and the fit errored out (or, before the explicit NaN
+    # check was added, silently returned β = 0). With the `fit_mle`-seeded
+    # init, the fit converges directly on the day-scale data — no manual
+    # `T ./ 1000` rescaling required.
+    using Distributions, RDatasets
+    using SurvivalModels: ProportionalHazard, AcceleratedFaillureTime
+
+    ovarian = dataset("survival", "ovarian")
+    ovarian.FUTime = Float64.(ovarian.FUTime)
+    ovarian.FUStat = Bool.(ovarian.FUStat)
+    f = @formula(Surv(FUTime, FUStat) ~ Age + ECOG_PS)
+
+    # PH Weibull: flexsurv's converged reference (verified externally) is
+    # β ≈ (0.1608, -0.1654).
+    m_ph = fit(ProportionalHazard{Weibull}, f, ovarian)
+    @test m_ph.β[1] ≈ 0.1608 atol = 1e-3
+    @test m_ph.β[2] ≈ -0.1654 atol = 1e-3
+    @test all(>(0), Distributions.params(m_ph.baseline))
+
+    # AFT Weibull also converges on raw-day TIME (was the failing path in
+    # PR #59's reference test, which scaled FUTime by 1/1000 as a workaround).
+    m_aft = fit(AcceleratedFaillureTime{Weibull}, f, ovarian)
+    @test all(isfinite, m_aft.β)
+    @test !all(iszero, m_aft.β)
+    @test all(>(0), Distributions.params(m_aft.baseline))
+
+    # Spot-check the four baselines our `_initial_baseline_log_params`
+    # overrides explicitly (Distributions.fit_mle exists + returns positive
+    # params on positive event-time data).
+    for B in (Weibull, LogNormal, Normal, Exponential)
+        m = fit(AcceleratedFaillureTime{B}, f, ovarian)
+        @test all(isfinite, m.β)
+        @test all(>(0), Distributions.params(m.baseline))
+    end
+end
