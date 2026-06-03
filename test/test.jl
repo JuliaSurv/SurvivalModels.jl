@@ -945,6 +945,62 @@ end
     @test_throws ErrorException predict(bare, :survival, df, 1.0)
 end
 
+
+@testitem "GHM Weibull PH/AFT matches R flexsurv on ovarian" begin
+    # Cross-check `ProportionalHazard{Weibull}` and `AcceleratedFaillureTime{Weibull}`
+    # against R's `flexsurv::flexsurvreg(..., dist = "weibullPH" | "weibull")` on the
+    # ovarian fixture.
+    #
+    # Reference values produced with flexsurv 2.3.2 and `options(digits = 14)`:
+    #
+    #   m_ph  <- flexsurvreg(Surv(futime, fustat) ~ age + ecog.ps,
+    #                        data = ovarian, dist = "weibullPH")
+    #   m_aft <- flexsurvreg(Surv(futime, fustat) ~ age + ecog.ps,
+    #                        data = ovarian, dist = "weibull")
+    #   newd  <- data.frame(age = c(60, 50), ecog.ps = c(1, 2))
+    #   summary(m_ph,  newdata = newd, t = c(100, 300, 600), type = "survival", tidy = TRUE)
+    #   summary(m_aft, newdata = newd, t = c(100, 300, 600), type = "survival", tidy = TRUE)
+    #
+    # FUTime is scaled by 1/1000 so that LBFGS converges from its zeros-init (which
+    # places the baseline at `Weibull(1, 1)`; on the unscaled t ~ 60..1227 it sits in
+    # a flat region of the loglik and fails to make progress). β is scale-invariant.
+
+    using DataFrames, Distributions, RDatasets
+    using SurvivalModels: ProportionalHazard, AcceleratedFaillureTime, predict_survival
+
+    ovarian = dataset("survival", "ovarian")
+    ovarian.FUTime = Float64.(ovarian.FUTime) ./ 1000
+    ovarian.FUStat = Bool.(ovarian.FUStat)
+
+    m_ph  = fit(ProportionalHazard{Weibull},
+                @formula(Surv(FUTime, FUStat) ~ Age + ECOG_PS), ovarian)
+    m_aft = fit(AcceleratedFaillureTime{Weibull},
+                @formula(Surv(FUTime, FUStat) ~ Age + ECOG_PS), ovarian)
+
+    # PH coefficients are log hazard ratios — identical convention in both packages.
+    @test m_ph.β[1] ≈  0.16083342676210 rtol = 1e-4
+    @test m_ph.β[2] ≈ -0.16538646310541 rtol = 1e-4
+
+    # AFT coefficients: SurvivalModels.jl uses `c1 = exp(x'β)` (positive β → time
+    # accelerates → shorter survival); flexsurv's AFT uses `log T = x'β + σW`
+    # (positive β → longer survival). Hence Julia's β = -flexsurv's β_aft.
+    @test m_aft.β[1] ≈ -(-0.097026692796186) rtol = 1e-4
+    @test m_aft.β[2] ≈ -( 0.099773423332264) rtol = 1e-4
+
+    # Predicted survival is parameterization-invariant — pin flexsurv's values.
+    newd = DataFrame(Age = [60.0, 50.0], ECOG_PS = [1.0, 2.0])
+    ts   = [100.0, 300.0, 600.0] ./ 1000   # match scaled fit
+    S_ph_ref = [0.96180227004260 0.78613097470795 0.46804856049608
+                0.99341257476790 0.95998720313543 0.87912015135050]
+
+    @test predict_survival(m_ph,  newd, ts) ≈ S_ph_ref rtol = 1e-5
+    @test predict_survival(m_aft, newd, ts) ≈ S_ph_ref rtol = 1e-5
+
+    # Sanity: same data, same baseline family, so PH and AFT survival predictions
+    # coincide regardless of which parameterization optimization found.
+    @test predict_survival(m_ph, newd, ts) ≈ predict_survival(m_aft, newd, ts) rtol = 1e-6
+end
+
 @testitem "GeneralHazardModel converges on day-scale ovarian (issue #60)" begin
     # Regression test: before the data-aware init, the optimizer was seeded at
     # `zeros(npd + p + q)`, which puts the baseline at e.g. `Weibull(1, 1)`.
