@@ -69,6 +69,11 @@ SurvivalModels.GeneralHazardModel
 GeneralHazard
 ```
 
+The fitting routines is seeded via the internal function `_initial_baseline_log_params` which you may overload if you feel like its necessary. 
+```@docs
+SurvivalModels._initial_baseline_log_params
+```
+
 ### Accelerated Failure Time (AFT) model
 The AFT model is formulated in terms of the hazard structure
 
