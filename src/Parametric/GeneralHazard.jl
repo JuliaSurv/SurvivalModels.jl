@@ -126,10 +126,9 @@ _initial_baseline_log_params(::LogNormal,   T) = _log_fit_params(LogNormal,   T)
 _initial_baseline_log_params(::Normal,      T) = _log_fit_params(Normal,      T)
 _initial_baseline_log_params(::Exponential, T) = _log_fit_params(Exponential, T)
 
-_log_fit_params(B::Type{<:Distribution}, T) =
-    log.(collect(Float64, Distributions.params(Distributions.fit_mle(B, T))))
+_log_fit_params(B::Type{<:Distribution}, T) = log.(collect(Float64, Distributions.params(Distributions.fit_mle(B, T))))
 
-_initial_baseline_log_params(::PowerGeneralizedWeibull, T) = [0.0,0.0, log(median(T))]
+_initial_baseline_log_params(::PowerGeneralizedWeibull, T) = [0.0, 0.0, 0.0]
 
 function _scale_anchored_init(baseline::Distribution, T)
     npd = length(Distributions.params(baseline))
