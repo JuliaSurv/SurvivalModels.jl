@@ -88,10 +88,22 @@ ci = confint(km)
 first(ci, 5)  # show the first 5 rows
 ```
 
+## Predictions
+
+A fitted estimator exposes a `predict` interface mirroring the one used by `Cox` and `GeneralHazardModel`, so downstream code can dispatch uniformly. With no time argument the result has one entry per stored event/censor time (`km.t`); with a scalar or vector time argument the step-function is evaluated at those times.
+
+```@example 1
+predict(km, :survival)         # Ŝ at each km.t
+predict(km, :cumhazard)        # Ĥ at each km.t
+predict(km, :survival, 5.0)    # Ŝ(5)
+predict(km, :survival, [1.0, 5.0, 8.0])  # Ŝ at the given times
+```
+
 ## References
 
 ```@docs
 KaplanMeier
+predict(::KaplanMeier)
 greenwood
 ```
 
