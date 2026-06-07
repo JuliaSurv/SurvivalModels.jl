@@ -104,6 +104,49 @@ end
 (S::KaplanMeier)(t) = prod((1 - S.∂Λ[i] for i in eachindex(S.t) if S.t[i] < t); init=1.0)
 
 """
+    predict(km::KaplanMeier)                       # = predict(km, :survival)
+    predict(km::KaplanMeier, type::Symbol)         # vector at km.t
+    predict(km::KaplanMeier, type::Symbol, t)      # scalar (step-function eval)
+    predict(km::KaplanMeier, type::Symbol, ts::AbstractVector)  # vector at ts
+
+Survival-function (`type = :survival`) or cumulative-hazard (`type =
+:cumhazard`) predictions from a fitted Kaplan-Meier estimator. With no
+time argument the result has one entry per stored event/censor time
+(`km.t`); with a scalar or vector time argument the result is the
+step-function evaluated at those times, matching R's
+`summary(survfit, times = ts)` convention.
+
+Mirrors the `predict(model, type, [t])` surface that `Cox` and
+`GeneralHazardModel` expose so downstream code can dispatch on
+`AbstractSurvivalModel`-style supertypes uniformly.
+"""
+StatsAPI.predict(km::KaplanMeier) = predict(km, :survival)
+
+function StatsAPI.predict(km::KaplanMeier, type::Symbol)
+    if type === :survival
+        return cumprod(1 .- km.∂Λ)
+    elseif type === :cumhazard
+        return cumsum(km.∂Λ)
+    else
+        error("Unsupported predict type `:$type` for KaplanMeier. Supported: `:survival`, `:cumhazard`.")
+    end
+end
+
+function StatsAPI.predict(km::KaplanMeier, type::Symbol, t::Real)
+    if type === :survival
+        return km(t)
+    elseif type === :cumhazard
+        return sum((km.∂Λ[i] for i in eachindex(km.t) if km.t[i] < t); init = 0.0)
+    else
+        error("Unsupported predict type `:$type` for KaplanMeier. Supported: `:survival`, `:cumhazard`.")
+    end
+end
+
+StatsAPI.predict(km::KaplanMeier, type::Symbol, ts::AbstractVector) =
+    [predict(km, type, t) for t in ts]
+
+
+"""
     greenwood(S::KaplanMeier, t)
 
 Compute the Greenwood variance estimate for the Kaplan-Meier survival estimator at time `t`.

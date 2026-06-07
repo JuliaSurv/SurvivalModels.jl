@@ -1040,3 +1040,51 @@ end
         @test all(>(0), Distributions.params(m.baseline))
     end
 end
+
+@testitem "KaplanMeier predict accessors (issue #65)" begin
+    using DataFrames, Distributions
+    using SurvivalModels: KaplanMeier
+
+    # Hand-computable fixture: 4 events at distinct times, no censoring.
+    # KM: S(t_i) = ∏ (1 - 1/Y_j) for j ≤ i. With Y = [4, 3, 2, 1], ∂N = [1,1,1,1]:
+    # S = (3/4) * (2/3) * (1/2) * (0/1) = [0.75, 0.5, 0.25, 0.0]
+    df = DataFrame(T = [10.0, 20.0, 30.0, 40.0], Δ = Bool[1, 1, 1, 1])
+    km = fit(KaplanMeier, @formula(Surv(T, Δ) ~ 1), df)
+
+    # 0-arg form == :survival
+    @test predict(km) ≈ [0.75, 0.5, 0.25, 0.0]
+    @test predict(km, :survival) ≈ [0.75, 0.5, 0.25, 0.0]
+
+    # cumhazard = cumsum(∂Λ) = cumsum([1/4, 1/3, 1/2, 1])
+    @test predict(km, :cumhazard) ≈ cumsum([1 / 4, 1 / 3, 1 / 2, 1.0])
+
+    # Scalar step-function eval. Matches the existing callable for :survival.
+    @test predict(km, :survival, 25.0) == km(25.0)
+    @test predict(km, :survival, 0.0)  == 1.0     # before any event
+    @test predict(km, :survival, 1000.0) ≈ 0.0    # after all events
+    @test predict(km, :survival, 15.0) ≈ 0.75     # after t=10, before t=20
+
+    # Vector form
+    @test predict(km, :survival, [5.0, 15.0, 25.0, 35.0]) ≈ [1.0, 0.75, 0.5, 0.25]
+    @test predict(km, :cumhazard, [5.0, 15.0]) ≈ [0.0, 0.25]
+
+    # Unsupported type errors cleanly.
+    @test_throws ErrorException predict(km, :lp)
+    @test_throws ErrorException predict(km, :lp, 5.0)
+end
+
+@testitem "KaplanMeier predict matches R survfit on ovarian" begin
+    using Distributions, RDatasets
+    using SurvivalModels: KaplanMeier
+
+    # Reference values from R `summary(survfit(Surv(futime, fustat) ~ 1, data =
+    # survival::ovarian), times = c(100, 500, 1000))$surv`.
+    ovarian = dataset("survival", "ovarian")
+    ovarian.FUTime = Float64.(ovarian.FUTime)
+    ovarian.FUStat = Bool.(ovarian.FUStat)
+    km = fit(KaplanMeier, @formula(Surv(FUTime, FUStat) ~ 1), ovarian)
+    S = predict(km, :survival, [100.0, 500.0, 1000.0])
+    @test S[1] ≈ 0.961538461538462 atol = 1e-12
+    @test S[2] ≈ 0.596078431372549 atol = 1e-12
+    @test S[3] ≈ 0.496732026143791 atol = 1e-12
+end
