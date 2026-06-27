@@ -90,7 +90,7 @@ struct GeneralHazardModel{Method, B}
         if isnan(mloglik(init))
             error("Initial parameters lead to NaN in log-likelihood. Check your baseline distribution and initial values.")
         end
-        par = optimize(mloglik, init, method=LBFGS()).minimizer
+        par = optimize(mloglik, init, LBFGS()).minimizer
         d, α, β = base_T(exp.(par[1:npd])...), par[npd .+ (1:q)], par[npd + q .+ (1:p)]
         return new{Method, typeof(d)}(T, Δ, d, X1, X2, α, β, formula1, formula2)
     end
