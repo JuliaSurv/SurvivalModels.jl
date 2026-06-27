@@ -14,6 +14,21 @@ c2(::PHMethod,  X1, X2, β, α) = exp.(X1 * β)
 c2(::AFTMethod, X1, X2, β, α) = ones(size(X1, 1))
 c2(::AHMethod,  X1, X2, β, α) = exp.(-X2 * α)
 
+# Negative log-likelihood, parameterized by the flat vector
+# `par = [log-baseline params (1:npd); α (npd .+ 1:q); β (npd+q .+ 1:p)]`. The
+# fit wraps this in a small closure to optimize; `vcov` differentiates it again
+# at the optimum to form the observed information — one definition, two callers.
+function _neg_loglik(par, method::AbstractGHMethod, base_T, npd, T, Δ, X1, X2)
+    q, p = size(X2, 2), size(X1, 2)
+    d = base_T(exp.(par[1:npd])...)
+    α = par[npd .+ (1:q)]
+    β = par[npd + q .+ (1:p)]
+    B = (method isa AHMethod) ? 0.0 : (X1[Δ, :] * β)
+    C = c1(method, X1, X2, β, α)
+    D = c2(method, X1, X2, β, α)
+    return -sum(loghazard.(d, T[Δ] .* C[Δ]) .+ B) + sum(cumhazard.(d, T .* C) .* D)
+end
+
 """
     GeneralHazardModel{Method, B}
 
@@ -47,7 +62,7 @@ Supported methods:
 - `AcceleratedHazard`: For AH models.
 - `GeneralHazard`: For full GH models.
 """
-struct GeneralHazardModel{Method, B}
+struct GeneralHazardModel{Method, B} <: StatsAPI.StatisticalModel
     T::Vector{Float64}
     Δ::Vector{Bool}
     baseline::B
@@ -57,6 +72,11 @@ struct GeneralHazardModel{Method, B}
     β::Vector{Float64}
     formula1::Union{FormulaTerm, Nothing}
     formula2::Union{FormulaTerm, Nothing}
+    # Maximized log-likelihood at the fitted parameters, captured directly from
+    # the optimizer (the fit *is* the maximization of this quantity, so there is
+    # nothing to recompute). `NaN` for models built by the direct constructor,
+    # which performs no optimization. Consumed by `loglikelihood`/`aic`/`bic`.
+    loglik::Float64
 
     # Direct constructor: all parameters provided, no optimization
     function GeneralHazardModel(::Method, T, Δ, baseline::B, X1, X2, α, β;
@@ -68,7 +88,7 @@ struct GeneralHazardModel{Method, B}
             collect(T), Bool.(Δ), baseline,
             Matrix{Float64}(X1), Matrix{Float64}(X2),
             collect(α), collect(β),
-            formula1, formula2,
+            formula1, formula2, NaN,
         )
     end
 
@@ -80,25 +100,107 @@ struct GeneralHazardModel{Method, B}
         init = vcat(_initial_baseline_log_params(baseline, T), zeros(p + q))
         base_T = typeof(baseline).name.wrapper
         Δ = Bool.(Δ)
-        function mloglik(par::Vector)
-            d, α, β = base_T(exp.(par[1:npd])...), par[npd .+ (1:q)], par[npd + q .+ (1:p)]
-            B = (Method == AHMethod) ? 0.0 : (X1[Δ,:] * β)
-            C = c1(m, X1, X2, β, α)
-            D = c2(m, X1, X2, β, α)
-            return  -sum(loghazard.(d, T[Δ] .* C[Δ]) .+ B) + sum(cumhazard.(d, T .* C) .* D)
-        end
+        mloglik(par) = _neg_loglik(par, m, base_T, npd, T, Δ, X1, X2)
         if isnan(mloglik(init))
             error("Initial parameters lead to NaN in log-likelihood. Check your baseline distribution and initial values.")
         end
-        par = optimize(mloglik, init, method=LBFGS()).minimizer
+        res = optimize(mloglik, init, method=LBFGS())
+        par = res.minimizer
+        # `mloglik` is the negative log-likelihood, so the optimizer's minimum is
+        # exactly `-loglik` at the optimum — cache it rather than recomputing.
+        loglik = -res.minimum
         d, α, β = base_T(exp.(par[1:npd])...), par[npd .+ (1:q)], par[npd + q .+ (1:p)]
-        return new{Method, typeof(d)}(T, Δ, d, X1, X2, α, β, formula1, formula2)
+        return new{Method, typeof(d)}(T, Δ, d, X1, X2, α, β, formula1, formula2, loglik)
     end
 end
+
+# Indices of the identified regression coefficients within the concatenated
+# coefficient vector `[α (1:q); β (q .+ 1:p)]`, where `p = length(β)` (cols of
+# `X1`) and `q = length(α)` (cols of `X2`). Per the `c1`/`c2` table above, PH/AFT
+# identify only `β`, AH only `α`, GH both. In the single-formula fit `X2 == X1`,
+# so the inactive block is carried but not identified — it must be excluded from
+# `dof` (else AIC/BIC inflate) and from the Hessian (else it is singular).
+#
+# This is the single source of truth for "which parameters are active": `dof`,
+# the `vcov` Hessian slice, and `coef` all derive from it.
+_active_coef_idx(::PHMethod,  p, q) = (q + 1):(q + p)
+_active_coef_idx(::AFTMethod, p, q) = (q + 1):(q + p)
+_active_coef_idx(::AHMethod,  p, q) = 1:q
+_active_coef_idx(::GHMethod,  p, q) = 1:(q + p)
 
 _method(::Type{GeneralHazardModel{M,B}}) where {M,B} = M()
 _baseline(::Type{GeneralHazardModel{M,B}}) where {M,B} = B()
 _method(::Type{GeneralHazardModel{M}}) where {M} = M()
+
+# ─────────────────────────────────────────────────────────────────────────────
+# StatsAPI fit statistics
+#
+# `GeneralHazardModel <: StatisticalModel`, so once `loglikelihood`, `dof`, and
+# `nobs` are defined the generic `aic`/`aicc`/`bic` from StatsAPI work directly.
+# ─────────────────────────────────────────────────────────────────────────────
+
+"""
+    loglikelihood(m::GeneralHazardModel)
+
+Maximized log-likelihood of the fitted model, captured from the optimizer at fit
+time (`NaN` for models built by the direct, non-optimizing constructor).
+"""
+StatsAPI.loglikelihood(m::GeneralHazardModel) = m.loglik
+
+"""
+    nobs(m::GeneralHazardModel)
+
+Number of observations (event/censoring times) the model was fit to.
+"""
+StatsAPI.nobs(m::GeneralHazardModel) = length(m.T)
+
+"""
+    dof(m::GeneralHazardModel)
+
+Number of free parameters consumed by the fit: the baseline distribution's
+parameters plus the regression coefficients that actually enter the hazard for
+this model's structure (`β` for PH/AFT, `α` for AH, both for GH).
+"""
+StatsAPI.dof(m::GeneralHazardModel{M}) where {M} =
+    length(Distributions.params(m.baseline)) +
+    length(_active_coef_idx(M(), size(m.X1, 2), size(m.X2, 2)))
+
+"""
+    coef(m::GeneralHazardModel)
+
+Identified parameters on the scale used for inference:
+`[log.(baseline parameters); active regression coefficients]`, where the active
+coefficients are `β` (PH/AFT), `α` (AH), or `[α; β]` (GH). This ordering matches
+[`vcov`](@ref), so `MvNormal(coef(m), vcov(m))` is a coherent sampling
+distribution for the parameter uncertainty (exponentiate the baseline entries to
+recover the natural-scale baseline parameters).
+"""
+function StatsAPI.coef(m::GeneralHazardModel{M}) where {M}
+    logθ = log.(collect(Float64, Distributions.params(m.baseline)))
+    coefs = vcat(m.α, m.β)[_active_coef_idx(M(), length(m.β), length(m.α))]
+    return vcat(logθ, coefs)
+end
+
+"""
+    vcov(m::GeneralHazardModel)
+
+Covariance of [`coef`](@ref): the inverse observed information, i.e. the inverse
+of the Hessian of the fitted negative log-likelihood at the optimum, restricted
+to the identified parameters (the inactive coefficient block makes the full
+Hessian singular). Computed on demand — LBFGS never forms the Hessian during the
+fit, so there is nothing cached to reuse. `stderror` follows from this via the
+generic `StatisticalModel` method.
+"""
+function StatsAPI.vcov(m::GeneralHazardModel{Method,B}) where {Method,B}
+    base_T = B.name.wrapper
+    npd = length(Distributions.params(m.baseline))
+    p, q = length(m.β), length(m.α)
+    par = vcat(log.(collect(Float64, Distributions.params(m.baseline))), m.α, m.β)
+    nll(θ) = _neg_loglik(θ, Method(), base_T, npd, m.T, m.Δ, m.X1, m.X2)
+    H = ForwardDiff.hessian(nll, par)
+    idx = vcat(1:npd, npd .+ _active_coef_idx(Method(), p, q))
+    return inv(H[idx, idx])
+end
 
 """
     _initial_baseline_log_params(baseline, T) -> Vector{Float64}
