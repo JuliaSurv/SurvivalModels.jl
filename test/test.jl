@@ -1088,3 +1088,59 @@ end
     @test S[2] ≈ 0.596078431372549 atol = 1e-12
     @test S[3] ≈ 0.496732026143791 atol = 1e-12
 end
+
+@testitem "GeneralHazardModel fit statistics (loglikelihood/aic/bic/coef/vcov)" begin
+    using DataFrames, Distributions, LinearAlgebra
+    using SurvivalModels: ProportionalHazard, AcceleratedFaillureTime,
+                          AcceleratedHazard, GeneralHazard
+    using StableRNGs
+
+    rng = StableRNG(20250101)
+    n   = 300
+    z   = randn(rng, n); w = randn(rng, n)
+    η   = 0.6 .* z .- 0.3 .* w
+    T   = 5.0 .* (-log.(rand(rng, n)) .* exp.(-η)) .^ (1 / 1.2)
+    C   = rand(rng, n) .* 20.0
+    df  = DataFrame(time = min.(T, C), status = T .<= C, z = z, w = w)
+
+    m = fit(ProportionalHazard{Weibull}, @formula(Surv(time, status) ~ z + w), df)
+
+    # Core statistics are finite and internally consistent.
+    @test isfinite(loglikelihood(m))
+    @test nobs(m) == n
+    @test dof(m) == 4                       # Weibull shape + scale + 2 PH coefs
+    @test aic(m)  ≈ -2 * loglikelihood(m) + 2 * dof(m)
+    @test bic(m)  ≈ -2 * loglikelihood(m) + dof(m) * log(nobs(m))
+    @test aicc(m) ≈ aic(m) + 2 * dof(m) * (dof(m) + 1) / (nobs(m) - dof(m) - 1)
+
+    # coef is on the inference scale [log(baseline params); active coefs], matching vcov.
+    c = coef(m)
+    @test length(c) == dof(m) == 4
+    @test exp.(c[1:2]) ≈ collect(params(m.baseline))   # baseline params recovered
+    @test c[3:4] ≈ m.β                                  # PH active coefs are β
+
+    # vcov: symmetric positive-definite dof×dof; stderror = sqrt.(diag(vcov)).
+    V = vcov(m)
+    @test size(V) == (4, 4)
+    @test isapprox(V, V')
+    @test isposdef(Symmetric(V))
+    @test stderror(m) ≈ sqrt.(diag(V))
+    @test all(isfinite, stderror(m))
+
+    # dof counts only the identified coefficients for each hazard structure.
+    me = fit(ProportionalHazard{Exponential}, @formula(Surv(time, status) ~ z + w), df)
+    @test dof(me) == 3                      # Exponential scale + 2 PH coefs
+    @test length(coef(me)) == 3 && size(vcov(me)) == (3, 3)
+
+    # Per-method dof via the direct constructor (no optimization needed): PH/AFT
+    # identify β, AH identifies α, GH both.
+    X1 = hcat(z, w); X2 = hcat(z, w)
+    base = Weibull(1.5, 5.0)
+    @test dof(ProportionalHazard(T, df.status, base, X1, X2, zeros(2), zeros(2)))     == 4
+    @test dof(AcceleratedFaillureTime(T, df.status, base, X1, X2, zeros(2), zeros(2))) == 4
+    @test dof(AcceleratedHazard(T, df.status, base, X1, X2, zeros(2), zeros(2)))       == 4
+    @test dof(GeneralHazard(T, df.status, base, X1, X2, zeros(2), zeros(2)))           == 6
+
+    # The direct (non-optimizing) constructor reports loglik = NaN.
+    @test isnan(loglikelihood(ProportionalHazard(T, df.status, base, X1, X2, zeros(2), zeros(2))))
+end
