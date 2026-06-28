@@ -114,7 +114,7 @@ AcceleratedHazard
 ```
 
 ### Available baseline hazards
-The current version of the `simGH` command implements the following parametric baseline hazards for the models discussed in the previous section.
+The current version of the `simulate` command implements the following parametric baseline hazards for the models discussed in the previous section.
 
 - [Power Generalised Weibull](http://rpubs.com/FJRubio/PGW) (PGW) distribution.
 
@@ -186,9 +186,9 @@ SurvivalModels.vcov(::SurvivalModels.GeneralHazardModel)
 
 Inverse-probability-of-censoring-weighted Brier score (Graf et al. 1999) and its integrated form work for `GeneralHazardModel` through the same `brier_score(model, ...)` / `integrated_brier_score(model, ...)` API used for Cox. See the [Model Evaluation: Brier Score](@ref) section of the Cox documentation for the mathematical definition and signature list.
 
-### Simulating times to event from a general hazard structure with `simGH`
+### Simulating times to event from a general hazard structure with `simulate`
 
-The simGH command from the `HazReg.jl` Julia package allows one to simulate times to event from the following models:
+The `simulate` command (ported from `HazReg.jl`; formerly `simGH`, now a deprecated alias) allows one to simulate times to event from the following models:
 
 - General Hazard (GH) model [chen:2001](@cite) [rubio:2019](@cite).
 - Accelerated Failure Time (AFT) model [kalbfleisch:2011](@cite).
@@ -198,18 +198,18 @@ The simGH command from the `HazReg.jl` Julia package allows one to simulate time
 A description of these hazard models is presented below as well as the available baseline hazards.
 
 ```@docs
-simGH
+simulate
 ```
 
 
 ## Illustrative example
-In this example, we simulate ``n=1,000`` times to event from the GH, PH, AFT, and AH models with PGW baseline hazards, using the `simGH()` function. This functionality was ported from [HazReg.jl](https://github.com/FJRubio67/HazReg.jl) 
+In this example, we simulate ``n=1,000`` times to event from the GH, PH, AFT, and AH models with PGW baseline hazards, using the `simulate()` function. This functionality was ported from [HazReg.jl](https://github.com/FJRubio67/HazReg.jl) 
 
 ### PGW-GH model
 
 ```@example 1
 using SurvivalModels, Distributions, DataFrames, Random, SurvivalDistributions
-using SurvivalModels: simGH
+using SurvivalModels: simulate
 
 # Simulte design matrices
 n = 100
@@ -228,7 +228,7 @@ model = GeneralHazard(zeros(n), trues(n),
     des, des_t, alpha0, beta0)
 
 # Simulate event times
-simdat = simGH(n, model)
+simdat = simulate(n, model)
 
 # Administrative censoring. 
 cens = 10
@@ -261,7 +261,7 @@ model = ProportionalHazard(zeros(n), trues(n),
 )
 
 # Simulate event times and censor them
-simdat = simGH(n, model)
+simdat = simulate(n, model)
 cens = 10
 status = simdat .< cens
 simdat = min.(simdat, cens)
@@ -292,7 +292,7 @@ model = AcceleratedFaillureTime(
 )
 
 # Simulate event times
-simdat = simGH(n, model)
+simdat = simulate(n, model)
 
 # Censoring
 cens = 10
@@ -323,7 +323,7 @@ model = AcceleratedHazard(zeros(n), trues(n),
 )
 
 # Simulate event times
-simdat = simGH(n, model)
+simdat = simulate(n, model)
 cens = 10
 status = simdat .< cens
 simdat = min.(simdat, cens)

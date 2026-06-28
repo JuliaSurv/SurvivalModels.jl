@@ -524,20 +524,91 @@ function StatsBase.predict(m::GeneralHazardModel, type::Symbol, newdata::DataFra
     error("Time-indexed `predict` on GeneralHazardModel newdata supports `:survival` and `:expected`, got `:$type`.")
 end
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Simulate / evaluate from an explicit baseline + design + coefficients
+#
+# These methods need no fitted model: pass the hazard structure (`method`), the
+# baseline distribution, the design matrices `X1`/`X2` (or a formula + DataFrame),
+# and the coefficients `α` (for `X2`) and `β` (for `X1`). They reuse the same
+# `c1`/`c2` multipliers as the fitted-model methods, so simulation, survival, and
+# cumulative hazard stay consistent with `fit`/`predict`.
+# ─────────────────────────────────────────────────────────────────────────────
+
+_as_matrix(X) = X isa AbstractMatrix ? X : reshape(X, :, 1)
+_gh_design(formula::FormulaTerm, df) = modelcols(apply_schema(formula, schema(df)).rhs, df)
+
 """
-    simGH(n, model::GeneralHazardModel)
+    simulate(n, method, baseline, X1, X2, α, β; rng=Random.default_rng())
+    simulate(n, method, baseline, formula[, formula2], df, α, β; rng=Random.default_rng())
+    simulate(n, model::GeneralHazardModel; rng=Random.default_rng())
 
-This function simulate times to event from a general hazard model, whatever the structure it has (AH, AFT, PH, GH), and whatever its baseline distribution. 
+Simulate `n` times to event from a general-hazard model with hazard structure
+`method` (`PHMethod()`/`AFTMethod()`/`AHMethod()`/`GHMethod()`) and `baseline`
+distribution. Each of the `n` rows of the design (`X1`/`X2`, or built from
+`formula`/`df` via `modelcols` exactly as in `fit`) yields one event time by
+inverting that subject's survival `Sᵢ(t)=U`, i.e.
+`Tᵢ = quantile(baseline, 1 − (1−Uᵢ)^(1/c2ᵢ)) / c1ᵢ`. `α` are the `X2`
+coefficients and `β` the `X1` coefficients (only the ones the structure uses).
 
-Returns a vector containing the simulated times to event
+The fitted-model form delegates here using the model's own design/coefficients.
 
-References: 
-* [HazReg original code](https://github.com/FJRubio67/HazReg) 
+References:
+* [HazReg original code](https://github.com/FJRubio67/HazReg)
 """
-function simGH(n, m::GeneralHazardModel{M,B}) where {M,B}
-    # This is completely wrong, and the covariates should be provided instead of reused like that, but its a placeholder for now
-    args = (M(), m.X1, m.X2, m.β, m.α)
-    p0 = 1 .- exp.(log.(1 .- rand(n)) ./ c2(args...))
-    rez = quantile.(m.baseline,p0) ./ c1(args...)
-    return rez
+function simulate(n::Integer, method::AbstractGHMethod, baseline, X1::AbstractVecOrMat, X2::AbstractVecOrMat, α, β; rng = Random.default_rng())
+    X1 = _as_matrix(X1)
+    X2 = _as_matrix(X2)
+    cc1 = c1(method, X1, X2, β, α)
+    cc2 = c2(method, X1, X2, β, α)
+    U = rand(rng, n)
+    return quantile.(baseline, 1 .- (1 .- U) .^ (1 ./ cc2)) ./ cc1
 end
+function simulate(n::Integer, method::AbstractGHMethod, baseline, formula1::FormulaTerm, formula2::FormulaTerm, df, α, β; rng = Random.default_rng())
+    simulate(n, method, baseline, _gh_design(formula1, df), _gh_design(formula2, df), α, β; rng)
+end
+simulate(n::Integer, method::AbstractGHMethod, baseline, formula::FormulaTerm, df, α, β; rng = Random.default_rng()) =
+    simulate(n, method, baseline, formula, formula, df, α, β; rng)
+simulate(n::Integer, m::GeneralHazardModel{M,B}; rng = Random.default_rng()) where {M,B} =
+    simulate(n, M(), m.baseline, m.X1, m.X2, m.α, m.β; rng)
+
+# Deprecated: `simGH` was the original (placeholder) simulation entry point; it is
+# now `simulate`. Kept (and still exported) as a thin, warning-emitting alias.
+Base.@deprecate simGH(n, m::GeneralHazardModel; rng = Random.default_rng()) simulate(n, m; rng)
+
+# Per-subject cumulative hazard `Λᵢ(t) = H₀(t·c1ᵢ)·c2ᵢ` from an explicit baseline +
+# design + coefficients (no fitted model). `t::Real` → length-`n` vector (one per
+# design row); `t::AbstractVector` → `n × length(t)` matrix. These mirror the
+# fitted-model `predict_expected`/`predict_survival` methods; `predict_survival`
+# is `exp(-Λ)`. (Comment-documented to keep the strict docs build's docstring set
+# anchored on `simulate`.)
+function predict_expected(method::AbstractGHMethod, baseline, X1::AbstractVecOrMat, X2::AbstractVecOrMat, α, β, t::Real)
+    X1 = _as_matrix(X1)
+    X2 = _as_matrix(X2)
+    cc1 = c1(method, X1, X2, β, α)
+    cc2 = c2(method, X1, X2, β, α)
+    return (-logccdf.(baseline, t .* cc1)) .* cc2
+end
+function predict_expected(method::AbstractGHMethod, baseline, X1::AbstractVecOrMat, X2::AbstractVecOrMat, α, β, ts::AbstractVector)
+    X1 = _as_matrix(X1)
+    X2 = _as_matrix(X2)
+    cc1 = c1(method, X1, X2, β, α)
+    cc2 = c2(method, X1, X2, β, α)
+    out = Matrix{Float64}(undef, length(cc1), length(ts))
+    @inbounds for j in eachindex(ts)
+        out[:, j] = (-logccdf.(baseline, ts[j] .* cc1)) .* cc2
+    end
+    return out
+end
+predict_expected(method::AbstractGHMethod, baseline, f1::FormulaTerm, f2::FormulaTerm, df, α, β, t) =
+    predict_expected(method, baseline, _gh_design(f1, df), _gh_design(f2, df), α, β, t)
+predict_expected(method::AbstractGHMethod, baseline, f::FormulaTerm, df, α, β, t) =
+    predict_expected(method, baseline, f, f, df, α, β, t)
+
+# Per-subject survival `Sᵢ(t) = exp(-Λᵢ(t))` from an explicit baseline + design +
+# coefficients (no fitted model); shapes match the `predict_expected` pieces forms.
+predict_survival(method::AbstractGHMethod, baseline, X1::AbstractVecOrMat, X2::AbstractVecOrMat, α, β, t) =
+    exp.(-predict_expected(method, baseline, X1, X2, α, β, t))
+predict_survival(method::AbstractGHMethod, baseline, f1::FormulaTerm, f2::FormulaTerm, df, α, β, t) =
+    exp.(-predict_expected(method, baseline, f1, f2, df, α, β, t))
+predict_survival(method::AbstractGHMethod, baseline, f::FormulaTerm, df, α, β, t) =
+    exp.(-predict_expected(method, baseline, f, df, α, β, t))
