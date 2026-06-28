@@ -90,7 +90,7 @@ include("Cox/CoxApprox.jl")
 # Extract the matrix of X's : 
 getX(M::CoxMethod) = M.X
 getX(M::CoxDefault) = M.Xᵗ'
-nobs(M::CoxMethod) = size(getX(M),1) # Default to X being (n,m)
+StatsAPI.nobs(M::CoxMethod) = size(getX(M),1) # Default to X being (n,m)
 nvar(M::CoxMethod) = size(getX(M),2)
 get_perm(M::CoxMethod) = M.o
 get_og_X(M::CoxMethod) = getX(M)[sortperm(get_perm(M)), :]

@@ -170,6 +170,18 @@ SurvivalModels.predict_expected(::SurvivalModels.GeneralHazardModel)
 SurvivalModels.predict_survival(::SurvivalModels.GeneralHazardModel)
 ```
 
+### Fit statistics
+
+`GeneralHazardModel <: StatsAPI.StatisticalModel`, so a fitted model supports the standard statistical-model accessors. `aic`, `aicc`, and `bic` follow from `loglikelihood`, `dof`, and `nobs`; `stderror` follows from `vcov`. `coef` and `vcov` are reported on the inference scale `[log.(baseline parameters); active regression coefficients]`, so `MvNormal(coef(m), vcov(m))` is a coherent parameter-uncertainty distribution.
+
+```@docs
+SurvivalModels.loglikelihood(::SurvivalModels.GeneralHazardModel)
+SurvivalModels.nobs(::SurvivalModels.GeneralHazardModel)
+SurvivalModels.dof(::SurvivalModels.GeneralHazardModel)
+SurvivalModels.coef(::SurvivalModels.GeneralHazardModel)
+SurvivalModels.vcov(::SurvivalModels.GeneralHazardModel)
+```
+
 #### Brier score
 
 Inverse-probability-of-censoring-weighted Brier score (Graf et al. 1999) and its integrated form work for `GeneralHazardModel` through the same `brier_score(model, ...)` / `integrated_brier_score(model, ...)` API used for Cox. See the [Model Evaluation: Brier Score](@ref) section of the Cox documentation for the mathematical definition and signature list.
