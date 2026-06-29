@@ -707,7 +707,7 @@ end
 
 @testitem "GeneralHazardModel direct construction and simulation" begin
     using SurvivalModels, Distributions, Random
-    using SurvivalModels: GeneralHazardModel, GHMethod, PHMethod, AFTMethod, AHMethod, simGH
+    using SurvivalModels: GeneralHazardModel, GHMethod, PHMethod, AFTMethod, AHMethod, simulate
 
     n = 1000
     Random.seed!(123)
@@ -735,14 +735,14 @@ end
     @test model_ah isa GeneralHazardModel{AHMethod, Weibull{Float64}}
 
     # Simulation
-    simdat = simGH(n, model)
+    simdat = simulate(n, model)
     @test length(simdat) == n
     @test all(simdat .> 0)
 end
 
 @testitem "GeneralHazardModel fit interface matches direct construction (simple case)" begin
     using SurvivalModels, Distributions, DataFrames, StatsModels, Random
-    using SurvivalModels: GeneralHazardModel, GHMethod, PHMethod, AFTMethod, AHMethod, simGH
+    using SurvivalModels: GeneralHazardModel, GHMethod, PHMethod, AFTMethod, AHMethod, simulate
 
     n = 100
     Random.seed!(42)
@@ -768,7 +768,7 @@ end
 
 @testitem "GeneralHazardModel fit interface for PH/AFT/AH" begin
     using SurvivalModels, Distributions, DataFrames, StatsModels, Random
-    using SurvivalModels: GeneralHazardModel, GHMethod, PHMethod, AFTMethod, AHMethod, simGH
+    using SurvivalModels: GeneralHazardModel, GHMethod, PHMethod, AFTMethod, AHMethod, simulate
 
     n = 100
     Random.seed!(42)
@@ -1160,4 +1160,38 @@ end
     @test aic(m)  ≈ -2 * loglikelihood(m) + 2 * dof(m)
     @test bic(m)  ≈ -2 * loglikelihood(m) + dof(m) * log(nobs(m))
     @test aicc(m) ≈ aic(m) + 2 * dof(m) * (dof(m) + 1) / (nobs(m) - dof(m) - 1)
+end
+    
+@testitem "simulate / predict from explicit baseline + design (no fitted model)" begin
+    using SurvivalModels, Distributions, Random, DataFrames
+    using SurvivalModels: PHMethod, ProportionalHazard, simulate, simGH,
+                          predict_survival, predict_expected
+
+    n = 4000
+    z = randn(MersenneTwister(1), n)
+    X = reshape(z, :, 1)
+    base = Weibull(1.3, 9.5)
+    β = [-0.5]
+
+    # pieces and formula/DataFrame forms agree (same rng), and both match the
+    # fitted-model form's delegation.
+    t_pieces = simulate(n, PHMethod(), base, X, X, [0.0], β; rng = MersenneTwister(7))
+    df = DataFrame(z = z)
+    t_formula = simulate(n, PHMethod(), base, @formula(0 ~ z), df, [0.0], β; rng = MersenneTwister(7))
+    m = ProportionalHazard(zeros(n), trues(n), base, X, X, [0.0], β)
+    t_model = simulate(n, m; rng = MersenneTwister(7))
+    @test t_formula ≈ t_pieces
+    @test t_model ≈ t_pieces
+    @test all(t_pieces .> 0)
+
+    # Deprecated simGH still delegates to simulate.
+    @test simGH(n, m; rng = MersenneTwister(7)) ≈ t_pieces
+
+    # predict pieces match the fitted-model predict, and reduce to the baseline at β = 0.
+    fitm = fit(ProportionalHazard{Weibull}, @formula(Surv(time, status) ~ z),
+               DataFrame(time = t_pieces, status = trues(n), z = z))
+    @test predict_survival(PHMethod(), fitm.baseline, X, X, [0.0], fitm.β, 5.0) ≈
+          predict(fitm, :survival, 5.0)
+    @test all(isapprox.(predict_survival(PHMethod(), base, X, X, [0.0], [0.0], 5.0), ccdf(base, 5.0)))
+    @test size(predict_expected(PHMethod(), base, X, X, [0.0], β, [1.0, 5.0, 10.0])) == (n, 3)
 end
