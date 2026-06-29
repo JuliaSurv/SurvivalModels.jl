@@ -35,7 +35,7 @@ Types:
 abstract type CoxMethod end
 abstract type CoxGrad<:CoxMethod end
 abstract type CoxLLH<:CoxGrad end
-struct Cox{CM}
+struct Cox{CM} <: StatsAPI.StatisticalModel
     M::CM
     β::Vector{Float64}
     pred_names::Vector{Symbol}
@@ -51,6 +51,15 @@ function loss(beta, M::CoxMethod)
     η = getX(M) * beta
     return dot(M.Δ, log.((M.T .<= M.T') * exp.(η)) .- η)
 end
+
+# `Cox <: StatisticalModel`: the Cox *partial* log-likelihood is `-loss` (the
+# `loss` here is the negative partial log-likelihood the solvers minimize). With
+# `dof` = number of regression coefficients and `nobs` = number of subjects, the
+# generic `aic`/`aicc`/`bic` from StatsAPI work directly (no baseline params,
+# since the model is semi-parametric).
+StatsAPI.loglikelihood(C::Cox) = -loss(C.β, C.M)
+StatsAPI.dof(C::Cox) = nvar(C.M)
+StatsAPI.nobs(C::Cox) = nobs(C.M)
 
 function getβ(M::CoxGrad; max_iter = 10000, tol = 1e-9)
     β = zeros(nvar(M))

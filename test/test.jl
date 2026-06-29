@@ -1145,6 +1145,23 @@ end
     @test isnan(loglikelihood(ProportionalHazard(T, df.status, base, X1, X2, zeros(2), zeros(2))))
 end
 
+@testitem "Cox fit statistics (loglikelihood/aic/bic)" begin
+    using RDatasets, DataFrames
+    using SurvivalModels: loss
+
+    ovarian = dataset("survival", "ovarian")
+    m = fit(Cox, @formula(Surv(FUTime, FUStat) ~ Age + ECOG_PS), ovarian)
+
+    # Cox partial log-likelihood is -loss; dof = #coefficients (semi-parametric,
+    # no baseline params); nobs = #subjects.
+    @test loglikelihood(m) ≈ -loss(m.β, m.M)
+    @test dof(m) == 2
+    @test nobs(m) == nrow(ovarian)
+    @test aic(m)  ≈ -2 * loglikelihood(m) + 2 * dof(m)
+    @test bic(m)  ≈ -2 * loglikelihood(m) + dof(m) * log(nobs(m))
+    @test aicc(m) ≈ aic(m) + 2 * dof(m) * (dof(m) + 1) / (nobs(m) - dof(m) - 1)
+end
+    
 @testitem "simulate / predict from explicit baseline + design (no fitted model)" begin
     using SurvivalModels, Distributions, Random, DataFrames
     using SurvivalModels: PHMethod, ProportionalHazard, simulate, simGH,
