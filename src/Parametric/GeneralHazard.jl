@@ -104,7 +104,7 @@ struct GeneralHazardModel{Method, B} <: StatsAPI.StatisticalModel
         if isnan(mloglik(init))
             error("Initial parameters lead to NaN in log-likelihood. Check your baseline distribution and initial values.")
         end
-        res = optimize(mloglik, init, method=LBFGS())
+        res = optimize(mloglik, init, LBFGS())
         par = res.minimizer
         # `mloglik` is the negative log-likelihood, so the optimizer's minimum is
         # exactly `-loglik` at the optimum — cache it rather than recomputing.
