@@ -2,8 +2,8 @@
     CoxOptim(T, Δ, X)
     fit(CoxOptim, @formula(Surv(T,Δ)~X), data = ...)
 
-The first implementation of the Cox proportional hazards model uses optimization libraries (Optimization.jl, Optim.jl) for coefficient estimation.
-It uses the BFGS algorithm to minimize the negative partial log-likelihood. 
+The first implementation of the Cox proportional hazards model uses Optim.jl for coefficient estimation.
+It uses the BFGS algorithm (with forward-mode automatic differentiation) to minimize the negative partial log-likelihood.
 
 Fields: 
 - X::Matrix{Float64}: The design matrix of covariates, where rows correspond to individuals and columns to features.
@@ -23,8 +23,8 @@ end
 
 function getβ(M::CoxOptim)
     B0 = zeros(nvar(M))
-    f = OptimizationFunction(loss, Optimization.AutoForwardDiff())
-    prob = OptimizationProblem(f, B0, M)
-    sol = solve(prob, Optim.BFGS())
-    return sol.u
+    # Minimize the negative partial log-likelihood `loss(β, M)` with Optim's BFGS
+    # and a forward-mode AD gradient.
+    res = optimize(b -> loss(b, M), B0, BFGS(); autodiff = AutoForwardDiff())
+    return res.minimizer
 end
