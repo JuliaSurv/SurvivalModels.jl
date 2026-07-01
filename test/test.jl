@@ -1195,3 +1195,27 @@ end
     @test all(isapprox.(predict_survival(PHMethod(), base, X, X, [0.0], [0.0], 5.0), ccdf(base, 5.0)))
     @test size(predict_expected(PHMethod(), base, X, X, [0.0], β, [1.0, 5.0, 10.0])) == (n, 3)
 end
+
+@testitem "GeneralHazardModel analytic gradient matches ForwardDiff" begin
+    using SurvivalModels, Distributions, ForwardDiff, Random
+    using SurvivalModels: _neg_loglik, _neg_loglik_grad, PHMethod, AFTMethod, AHMethod, GHMethod
+
+    rng = Random.MersenneTwister(1)
+    n = 40
+    T  = rand(rng, n) .* 5 .+ 0.2
+    Δ  = rand(rng, n) .> 0.3
+    X1 = [ones(n) randn(rng, n)]
+    X2 = [ones(n) randn(rng, n) randn(rng, n)]
+
+    for (base_T, npd) in ((Weibull, 2), (LogNormal, 2), (Exponential, 1)),
+        m in (PHMethod(), AFTMethod(), AHMethod(), GHMethod())
+
+        q, p = size(X2, 2), size(X1, 2)
+        par = vcat(randn(rng, npd) .* 0.3, randn(rng, q) .* 0.2, randn(rng, p) .* 0.2)
+        f = par -> _neg_loglik(par, m, base_T, npd, T, Δ, X1, X2)
+        isnan(f(par)) && continue
+        g_analytic = _neg_loglik_grad(par, m, base_T, npd, T, Δ, X1, X2)
+        g_ad = ForwardDiff.gradient(f, par)
+        @test g_analytic ≈ g_ad rtol=1e-8
+    end
+end
