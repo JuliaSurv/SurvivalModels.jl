@@ -419,14 +419,14 @@ end
     predict_expected(m::GeneralHazardModel, newdata::DataFrame, t::Real)
     predict_expected(m::GeneralHazardModel, newdata::DataFrame, ts::AbstractVector)
 
-Per-subject cumulative hazard `Λᵢ(t) = H₀(t · c1ᵢ) · c2ᵢ`, where `H₀` is the cumulative
-hazard of the baseline distribution and `(c1ᵢ, c2ᵢ)` are the method-specific time- and
-hazard-scale multipliers (PH, AFT, AH, GH share the same closed form via the unified
-`H(t|x) = H₀(t · c1) · c2` representation).
+Per-subject cumulative hazard ``\\Lambda_i(t) = H_0(t\\, c_{1i})\\, c_{2i}``, where ``H_0`` is the
+cumulative hazard of the baseline distribution and ``(c_{1i}, c_{2i})`` are the method-specific
+time- and hazard-scale multipliers (PH, AFT, AH, GH share the same closed form via the unified
+``H(t \\mid x) = H_0(t\\, c_1)\\, c_2`` representation).
 
 Output shape:
 - no time argument → length-`n` vector with each subject evaluated at their own
-  observed time `Tᵢ`;
+  observed time ``T_i``;
 - `t::Real` → length-`n` vector at the scalar time;
 - `ts::AbstractVector` → `n × length(ts)` matrix.
 
@@ -479,7 +479,7 @@ end
     predict_survival(m::GeneralHazardModel, newdata::DataFrame, t::Real)
     predict_survival(m::GeneralHazardModel, newdata::DataFrame, ts::AbstractVector)
 
-Per-subject survival probability `Sᵢ(t) = exp(-Λᵢ(t))` derived from
+Per-subject survival probability ``S_i(t) = \\exp(-\\Lambda_i(t))`` derived from
 [`predict_expected`](@ref). Shapes match `predict_expected`; newdata variants
 require an explicit time argument.
 """

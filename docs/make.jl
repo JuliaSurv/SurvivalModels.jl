@@ -15,6 +15,10 @@ makedocs(;
     plugins=[bib],
     authors="Oskar Laverny <oskar.laverny@univ-amu.fr> and contributors",
     sitename="SurvivalModels.jl",
+    # Only require exported symbols to be documented, so internal helpers
+    # (e.g. `_initial_baseline_log_params`) can keep their source docstrings
+    # without being surfaced in the public docs.
+    checkdocs=:exports,
     format=Documenter.HTML(;
         canonical="https://JuliaSurv.github.io/SurvivalModels.jl",
         edit_link="main",
@@ -30,12 +34,14 @@ makedocs(;
             "Cox" => "semiparametric/cox.md",
         ],
         "Parametric" => [
-            "General Hazard" => "parametric/generalhazard.md",
-            # Add parametric models here as you implement them
-            # "General Hazard" => "parametric/generalhazard.md",
+            "Model classes" => "parametric/models.md",
+            "Baseline hazards" => "parametric/baselines.md",
+            "Fitting, prediction & simulation" => "parametric/fitting.md",
+            "Illustrative example" => "parametric/example.md",
         ],
         "Case Study" => "case_study.md",
         "References" => "references.md",
+        "Index" => "apiindex.md",
     ],
 )
 
