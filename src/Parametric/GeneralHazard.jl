@@ -29,6 +29,76 @@ function _neg_loglik(par, method::AbstractGHMethod, base_T, npd, T, Δ, X1, X2)
     return -sum(loghazard.(d, T[Δ] .* C[Δ]) .+ B) + sum(cumhazard.(d, T .* C) .* D)
 end
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Analytic gradient of the negative log-likelihood.
+#
+# Writing the per-subject "accelerated time" `rᵢ = Tᵢ·c₁ᵢ`, the log-likelihood is
+#   ℓ = Σᵢ Δᵢ[log h₀(rᵢ) + log c₁ᵢ + log c₂ᵢ] − Σᵢ H₀(rᵢ)·c₂ᵢ.
+# Its gradient w.r.t. the regression coefficients is closed-form and needs only
+# the scalar baseline primitives hᵢ = h₀(rᵢ), Hᵢ = H₀(rᵢ) and aᵢ = ∂_r log h₀(rᵢ):
+#
+#   ∂ℓ/∂β = X₁ᵀ sᵝ,   ∂ℓ/∂α = X₂ᵀ sᵅ        (see `_score_beta`/`_score_alpha`).
+#
+# The baseline-parameter block ∂ℓ/∂η (η = log θ) is obtained by differentiating
+# only the baseline part of ℓ w.r.t. η with (rᵢ, c₂ᵢ) held fixed — those depend
+# on the regression coefficients, not on θ — via a small ForwardDiff call.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ∂_r log h₀(r): the derivative of the baseline log-hazard w.r.t. its time
+# argument. Defaults to a scalar forward-mode AD call; specialize per baseline
+# distribution for a closed form if a hot path ever needs it.
+_dloghazard_dt(d, r) = ForwardDiff.derivative(t -> loghazard(d, t), r)
+
+# Per-subject score contributions for the *positive* log-likelihood, by method.
+# `Δ` is the float event indicator, `D = c₂`, `h = h₀(r)`, `H = H₀(r)`, `a = ∂_r log h₀(r)`.
+# β-block: PH/GH proportional (Δ − H·c₂); AFT couples warp+proportional; AH inactive.
+_score_beta(::PHMethod,  Δ, D, h, H, a, r) = Δ .- H .* D
+_score_beta(::GHMethod,  Δ, D, h, H, a, r) = Δ .- H .* D
+_score_beta(::AFTMethod, Δ, D, h, H, a, r) = Δ .* (a .* r .+ 1) .- h .* r
+_score_beta(::AHMethod,  Δ, D, h, H, a, r) = zero(r)
+# α-block: AH/GH share the time-warp score; PH/AFT inactive.
+_score_alpha(::AHMethod, Δ, D, h, H, a, r) = Δ .* (a .* r) .- h .* r .* D .+ H .* D
+_score_alpha(::GHMethod, Δ, D, h, H, a, r) = Δ .* (a .* r) .- h .* r .* D .+ H .* D
+_score_alpha(::PHMethod,  Δ, D, h, H, a, r) = zero(r)
+_score_alpha(::AFTMethod, Δ, D, h, H, a, r) = zero(r)
+
+# Baseline part of the *positive* log-likelihood as a function of η = log θ,
+# with the accelerated times `r` and hazard-scale multipliers `D = c₂` fixed.
+function _baseline_eta_loglik(base_T, η, r, D, Δ)
+    d = base_T(exp.(η)...)
+    return sum(Δ .* loghazard.(d, r)) - sum(D .* cumhazard.(d, r))
+end
+
+# Gradient of `_neg_loglik` w.r.t. the flat parameter vector `par`. Same argument
+# convention and ordering as `_neg_loglik`, so it plugs straight into Optim.
+function _neg_loglik_grad(par, method::AbstractGHMethod, base_T, npd, T, Δ, X1, X2)
+    q, p = size(X2, 2), size(X1, 2)
+    d = base_T(exp.(par[1:npd])...)
+    α = par[npd .+ (1:q)]
+    β = par[npd + q .+ (1:p)]
+    C = c1(method, X1, X2, β, α)
+    D = c2(method, X1, X2, β, α)
+    r = T .* C
+    Δf = float.(Δ)
+    h = hazard.(d, r)
+    H = cumhazard.(d, r)
+    a = _dloghazard_dt.(Ref(d), r)
+    gβ = X1' * _score_beta(method, Δf, D, h, H, a, r)
+    gα = X2' * _score_alpha(method, Δf, D, h, H, a, r)
+    gη = ForwardDiff.gradient(η -> _baseline_eta_loglik(base_T, η, r, D, Δf), par[1:npd])
+    # `_neg_loglik` is the negative log-likelihood, so negate the score of ℓ.
+    return -vcat(gη, gα, gβ)
+end
+
+# Whether the analytic gradient path can be used for a given baseline. It relies
+# on forward-mode AD through the baseline `loghazard`/`cumhazard` (for `aᵢ` and
+# the η-block); a few baselines are not AD-compatible and fall back to Optim's
+# finite-difference gradient. See JuliaSurv/SurvivalDistributions.jl#22
+# (GeneralizedGamma) and #20/#21 (LogLogistic, until the fix is released).
+_supports_analytic_grad(::Distribution) = true
+_supports_analytic_grad(::SurvivalDistributions.GeneralizedGamma) = false
+_supports_analytic_grad(::SurvivalDistributions.LogLogistic) = false
+
 """
     GeneralHazardModel{Method, B}
 
@@ -104,7 +174,21 @@ struct GeneralHazardModel{Method, B} <: StatsAPI.StatisticalModel
         if isnan(mloglik(init))
             error("Initial parameters lead to NaN in log-likelihood. Check your baseline distribution and initial values.")
         end
-        res = optimize(mloglik, init, LBFGS())
+        # Dense BFGS with a scaled initial step: at the small parameter counts of
+        # these models it converges in fewer gradient evaluations than LBFGS, and
+        # `initial_stepnorm` supplies the H₀ scaling that an identity-initialized
+        # BFGS otherwise lacks. The unidentified coefficient block (e.g. α for PH)
+        # has identically-zero gradient, so the quasi-Newton step leaves it at its
+        # zero init — no need to drop it from the parameter vector here.
+        optimizer = BFGS(initial_stepnorm = 1.0)
+        if _supports_analytic_grad(baseline)
+            g!(G, par) = (G .= _neg_loglik_grad(par, m, base_T, npd, T, Δ, X1, X2); G)
+            res = optimize(mloglik, g!, init, optimizer)
+        else
+            # Baseline not AD-compatible (see `_supports_analytic_grad`): let Optim
+            # form the gradient by finite differences.
+            res = optimize(mloglik, init, optimizer)
+        end
         par = res.minimizer
         # `mloglik` is the negative log-likelihood, so the optimizer's minimum is
         # exactly `-loglik` at the optimum — cache it rather than recomputing.
