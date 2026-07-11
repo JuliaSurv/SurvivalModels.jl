@@ -69,6 +69,70 @@
       end
 end
 
+@testitem "Cox Breslow ties use full risk sets" begin
+      using SurvivalModels: CoxDefault, CoxApprox, update!
+
+      T = [1.0, 2.0, 2.0, 2.0, 3.0, 4.0]
+      status = Bool[true, true, false, true, false, true]
+      X = [
+            0.0   1.0
+            1.0   0.5
+           -0.5   1.5
+            0.25 -0.25
+            1.5  -1.0
+           -1.0   0.0
+      ]
+      beta = [0.35, -0.2]
+
+      function breslow_reference(T, status, X, beta)
+            eta = X * beta
+            weights = exp.(eta)
+            times = sort(unique(T))
+            loglik = 0.0
+            score = vec(sum(X[status, :], dims=1))
+            cumhaz = Float64[]
+            current_hazard = 0.0
+
+            for t in times
+                  events = status .& (T .== t)
+                  d = sum(events)
+                  risk = T .>= t
+                  risk_weight = sum(weights[risk])
+
+                  if d > 0
+                        loglik += sum(eta[events]) - d * log(risk_weight)
+                        weighted_x = vec(sum(X[risk, :] .* weights[risk], dims=1))
+                        score .-= d .* weighted_x ./ risk_weight
+                        current_hazard += d / risk_weight
+                  end
+
+                  push!(cumhaz, current_hazard)
+            end
+
+            return times, cumhaz, loglik, score
+      end
+
+      times, cumhaz, loglik, score = breslow_reference(T, status, X, beta)
+      weights = exp.(X * beta)
+      expected_cumhaz = [
+            1 / sum(weights[T .>= 1.0]),
+            1 / sum(weights[T .>= 1.0]) + 2 / sum(weights[T .>= 2.0]),
+            1 / sum(weights[T .>= 1.0]) + 2 / sum(weights[T .>= 2.0]),
+            1 / sum(weights[T .>= 1.0]) + 2 / sum(weights[T .>= 2.0]) + 1 / sum(weights[T .>= 4.0]),
+      ]
+
+      @test times == [1.0, 2.0, 3.0, 4.0]
+      @test cumhaz ≈ expected_cumhaz atol=1e-12
+
+      for M in (CoxDefault, CoxApprox)
+            model = M(T, status, X)
+            update!(copy(beta), model)
+
+            @test model.loss[1] ≈ loglik atol=1e-12
+            @test model.G ≈ score atol=1e-12
+      end
+end
+
 
 
 @testitem "Check Cox on real data" begin
@@ -791,6 +855,7 @@ end
     model_ah = fit(AcceleratedHazard{Weibull}, @formula(Surv(time, status) ~ x1 + x2), df)
     @test model_ah isa GeneralHazardModel{AHMethod, Weibull{Float64}}
     @test length(model_ah.α) == 2
+
 end
 
 
