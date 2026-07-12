@@ -769,6 +769,34 @@ end
     @test isapprox(lrt1.pval, lrt2.pval; atol=1e-8)
 end
 
+@testitem "KaplanMeier fit() accepts Int/Float status columns (issue #77)" begin
+    using SurvivalModels: KaplanMeier
+    using DataFrames, StatsModels
+
+    T = Float64[2, 3, 4, 5, 8, 3, 6]
+    D = [1, 1, 0, 1, 0, 1, 1]              # natural Int 0/1 encoding
+    ref = KaplanMeier(T, D)
+
+    # The formula fit accepts the status column in any of the encodings a user
+    # might supply, and produces the same estimator as the direct constructor.
+    for status in (D, Bool.(D), Float64.(D))
+        df = DataFrame(time = T, status = status)
+        km = fit(KaplanMeier, @formula(Surv(time, status) ~ 1), df)
+        @test km.t  == ref.t
+        @test km.∂N == ref.∂N
+        @test km.Y  == ref.Y
+        @test km.∂Λ == ref.∂Λ
+    end
+
+    # Columns not referenced by the formula are ignored, even a single-level
+    # categorical that would otherwise fail contrast construction (as arises when
+    # a frame is subset to one group before fitting an intercept-only KM).
+    df = DataFrame(time = T, status = D, grp = fill("Obs", length(T)))
+    km = fit(KaplanMeier, @formula(Surv(time, status) ~ 1), df)
+    @test km.t == ref.t
+    @test km.∂Λ == ref.∂Λ
+end
+
 @testitem "GeneralHazardModel direct construction and simulation" begin
     using SurvivalModels, Distributions, Random
     using SurvivalModels: GeneralHazardModel, GHMethod, PHMethod, AFTMethod, AHMethod, simulate

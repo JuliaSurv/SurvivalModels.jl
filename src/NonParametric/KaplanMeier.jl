@@ -93,11 +93,13 @@ struct KaplanMeier{T}
 end
 
 function StatsBase.fit(::Type{T}, formula::FormulaTerm, df::DataFrame) where {T<:KaplanMeier}
-    lhs_vars = StatsModels.termvars(formula.lhs)
-    resp = modelcols(formula.lhs, df[:, lhs_vars])
-    Tvec = getindex.(resp, 1)
-    Δvec = getindex.(resp, 2)
-    return KaplanMeier(Tvec, Δvec)
+    # `schema(formula, df)` reads only the columns the formula references, then
+    # `apply_schema` turns the `Surv(t, s)` LHS into a response term whose
+    # `modelcols` returns an `n×2` matrix: column 1 the times, column 2 the event
+    # indicator. Coerce the indicator to `Bool` for the constructor.
+    formula_applied = apply_schema(formula, schema(formula, df))
+    resp = modelcols(formula_applied.lhs, df)
+    return KaplanMeier(resp[:, 1], Bool.(resp[:, 2]))
 end
 
 # Survival estimate Ŝ(t)
