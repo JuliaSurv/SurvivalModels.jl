@@ -8,12 +8,16 @@ A model is fitted from data with `fit(Model, @formula(Surv(time, status) ~ ...),
 
 `GeneralHazardModel <: StatsAPI.StatisticalModel`, so a fitted model supports the standard statistical-model accessors. `aic`, `aicc`, and `bic` follow from `loglikelihood`, `dof`, and `nobs`; `stderror` follows from `vcov`. `coef` and `vcov` are reported on the inference scale `[log.(baseline parameters); active regression coefficients]`, so `MvNormal(coef(m), vcov(m))` is a coherent parameter-uncertainty distribution.
 
+For a fitted-model report, `coeftable(m)` gives the Wald table of covariate effects (with `exp(coef)` and its confidence interval) and `confint(m)` the coefficient intervals as a `DataFrame`; both exclude the baseline distribution parameters, which `show` reports as the fitted baseline instead.
+
 ```@docs
 SurvivalModels.loglikelihood(::SurvivalModels.GeneralHazardModel)
 SurvivalModels.nobs(::SurvivalModels.GeneralHazardModel)
 SurvivalModels.dof(::SurvivalModels.GeneralHazardModel)
 SurvivalModels.coef(::SurvivalModels.GeneralHazardModel)
 SurvivalModels.vcov(::SurvivalModels.GeneralHazardModel)
+SurvivalModels.coeftable(::SurvivalModels.GeneralHazardModel)
+SurvivalModels.confint(::SurvivalModels.GeneralHazardModel)
 ```
 
 ### Brier score

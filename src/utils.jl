@@ -1,4 +1,27 @@
 
+# Rounded formatting for coefficient/parameter values in `show` methods.
+_coef_fmt(x) = string(round(x; sigdigits = 5))
+
+# Confidence level as a compact percentage string, e.g. 0.95 -> "95", 0.9 -> "90".
+_ci_levstr(level) = (v = 100 * level; isinteger(v) ? string(Int(v)) : string(v))
+
+# Wald coefficient table shared by the hazard-based regression models: estimate,
+# standard error, `z`, p-value, `exp(coef)`, and the confidence interval for
+# `exp(coef)` at `level`. `exp(coef)` is a hazard ratio for hazard-level effects
+# and a time/acceleration ratio for time-scale effects; the row names carry that
+# distinction.
+function _hr_coeftable(b, se, rownms; level::Real = 0.95)
+    z = b ./ se
+    p = 2 .* ccdf.(Normal(), abs.(z))
+    zc = quantile(Normal(), (1 + level) / 2)
+    ls = _ci_levstr(level)
+    return CoefTable(
+        [b, se, z, p, exp.(b), exp.(b .- zc .* se), exp.(b .+ zc .* se)],
+        ["Coef.", "Std. Error", "z", "Pr(>|z|)", "exp(coef)", "Lower $ls%", "Upper $ls%"],
+        rownms, 4, 3,
+    )
+end
+
 """
     harrells_c(times, statuses, risk_scores)
     harrels_c(C::Cox)

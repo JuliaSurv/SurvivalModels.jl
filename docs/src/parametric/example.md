@@ -4,6 +4,8 @@ In this example, we simulate ``n=100`` times to event from the GH, PH, AFT, and 
 
 ## PGW-GH model
 
+The fitted model displays the baseline distribution and the two coefficient sets grouped by role (`time-scale` for `X_2`, `hazard-level` for `X_1`):
+
 ```@example 1
 using SurvivalModels, Distributions, DataFrames, Random, SurvivalDistributions
 using SurvivalModels: simulate
@@ -38,7 +40,11 @@ model = fit(GeneralHazard{PowerGeneralizedWeibull},
     @formula(Surv(time, status) ~ x1 + x2), 
     @formula(Surv(time, status) ~ z1 + z2), 
     df)
+```
 
+Comparing the fitted values against the truth:
+
+```@example 1
 result = DataFrame(
     Parameter = ["θ₁", "θ₂", "θ₃", "α₁", "α₂","β₁", "β₂"],
     True      = vcat(theta0, alpha0, beta0),
@@ -68,7 +74,9 @@ simdat = min.(simdat, cens)
 df = DataFrame(time=simdat, status=status, x1=des[:,1], x2=des[:,2])
 model = fit(ProportionalHazard{PowerGeneralizedWeibull}, 
     @formula(Surv(time, status) ~ x1 + x2), df)
+```
 
+```@example 1
 result = DataFrame(
     Parameter = ["θ₁", "θ₂", "θ₃", "β₁", "β₂"],
     True      = vcat(theta0, beta0),
@@ -98,7 +106,9 @@ simdat = min.(simdat, cens)
 df = DataFrame(time=simdat, status=status, x1=des[:,1], x2=des[:,2])
 model = fit(AcceleratedFaillureTime{PowerGeneralizedWeibull}, 
     @formula(Surv(time, status) ~ x1 + x2), df)
+```
 
+```@example 1
 result = DataFrame(
     Parameter = ["θ₁", "θ₂", "θ₃", "β₁", "β₂"],
     True      = vcat(theta0, beta0),
@@ -125,7 +135,9 @@ simdat = min.(simdat, cens)
 df = DataFrame(time=simdat, status=status, z1=des_t[:,1], z2=des_t[:,2])
 model = fit(AcceleratedHazard{PowerGeneralizedWeibull}, 
     @formula(Surv(time, status) ~ z1 + z2), df)
+```
 
+```@example 1
 result = DataFrame(
     Parameter = ["θ₁", "θ₂", "θ₃", "α₁", "α₂"],
     True      = vcat(theta0, alpha0),

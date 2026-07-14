@@ -60,6 +60,10 @@ end
 StatsAPI.loglikelihood(C::Cox) = -loss(C.β, C.M)
 StatsAPI.dof(C::Cox) = nvar(C.M)
 StatsAPI.nobs(C::Cox) = nobs(C.M)
+StatsAPI.coef(C::Cox) = C.β
+StatsAPI.coefnames(C::Cox) = string.(C.pred_names)
+# Observed information from the fit; `stderror`/`coeftable`/`confint` derive from it.
+StatsAPI.vcov(C::Cox) = inv(get_hessian(C))
 
 function getβ(M::CoxGrad; max_iter = 10000, tol = 1e-9)
     β = zeros(nvar(M))
@@ -409,61 +413,46 @@ function StatsBase.fit(::Type{T}, formula::FormulaTerm, df::DataFrame) where T<:
 end
 
 """
-    summary(model::Cox)
+    coeftable(model::Cox; level::Real=0.95)
 
-Compute a statistical summary table for a fitted Cox proportional hazards model.
-
-This function calculates standard errors, z-scores, p-values, and confidence intervals.
-
-# Returns
-A `DataFrame` with the following columns:
-- `predictor`: Name of the covariate.
-- `β`: Estimated regression coefficient.
-- `e_β`: Hazard ratio (exp(β)).
-- `se`: Standard error of the coefficient.
-- `z_scores`: Wald statistic (β / se).
-- `p_values`: Two-sided p-value.
-- `ci_lower_β`: Lower bound of the 95% confidence interval for β.
-- `ci_upper_β`: Upper bound of the 95% confidence interval for β.
-
-# Example
-```julia
-model = fit(Cox, @formula(Surv(time, status) ~ age + sex), df)
-
-# Get the full summary dataframe
-summ = summary(model)
-
-# Extract standard errors specifically
-standard_errors = summ.se
-```
+Wald coefficient table for a fitted Cox model: the coefficient (log hazard
+ratio), its standard error, the `z` statistic, the two-sided p-value, the hazard
+ratio `exp(coef)`, and the confidence interval for the hazard ratio at confidence
+level `level` (matching R's `summary(coxph)` convention).
 """
-function summary(C::Cox)
-    # Standard Error, z-score, p-values and c-index: 
-    se = sqrt.(diag(inv(get_hessian(C.M, C.β))))
-    z_scores = C.β ./ se
-    p_values = 2 .* ccdf.(Normal(), abs.(z_scores))
+StatsAPI.coeftable(C::Cox; level::Real = 0.95) =
+    _hr_coeftable(coef(C), stderror(C), coefnames(C); level = level)
 
-    q = quantile(Normal(), 0.975) 
-    ci_lower_β = C.β .- se .* q
-    ci_upper_β = C.β .+ se .* q
-    return DataFrame(
-        predictor = C.pred_names,
-        β = C.β,
-        e_β = exp.(C.β),
-        se = se,
-        z_scores = z_scores,
-        p_values = p_values,
-        ci_lower_β  = ci_lower_β,
-        ci_upper_β = ci_upper_β
-    )
+"""
+    confint(model::Cox; level::Real=0.95)
+
+Wald confidence intervals for the coefficients (log-hazard-ratio scale) at
+confidence level `level`. Returns a `DataFrame` with columns `term`, `lower`,
+`upper`.
+"""
+function StatsAPI.confint(C::Cox; level::Real = 0.95)
+    b = coef(C)
+    se = stderror(C)
+    z = quantile(Normal(), (1 + level) / 2)
+    return DataFrame(term = coefnames(C), lower = b .- z .* se, upper = b .+ z .* se)
 end
 
-function _summary_line(C::Cox)
-    c_index = harrells_c(C)
-    return "Cox Model (n: $(nobs(C.M)), m: $(nvar(C.M)), method: $(typeof(C).parameters[1]), C-index: $(c_index))"
-end
+# One-line descriptor. Deliberately cheap: no C-index (it is O(n²)) and no
+# covariance-derived quantities — `show` stays faithful to the fitted object, and
+# inference lives in `coeftable`/`confint`.
+_summary_line(C::Cox) = "Cox model (method: $(nameof(typeof(C).parameters[1])))"
 
-function Base.show(io::IO, C::Cox)
+function Base.show(io::IO, ::MIME"text/plain", C::Cox)
     println(io, _summary_line(C))
-    Base.show(summary(C))
+    println(io, "  n: ", nobs(C), ", events: ", Int(sum(C.M.Δ)))
+    println(io, "  log-likelihood: ", _coef_fmt(loglikelihood(C)),
+        ", AIC: ", _coef_fmt(aic(C)), ", BIC: ", _coef_fmt(bic(C)))
+    println(io, "  coefficients:")
+    nm, b = coefnames(C), coef(C)
+    w = isempty(nm) ? 0 : maximum(length, nm)
+    for (n, x) in zip(nm, b)
+        println(io, "    ", rpad(n, w), "  ", _coef_fmt(x))
+    end
 end
+
+Base.show(io::IO, C::Cox) = print(io, _summary_line(C))
