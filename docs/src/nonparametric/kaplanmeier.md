@@ -105,6 +105,7 @@ predict(km, :survival, [1.0, 5.0, 8.0])  # Ŝ at the given times
 KaplanMeier
 predict(::KaplanMeier)
 greenwood
+confint(::KaplanMeier)
 ```
 
 ```@bibliography
