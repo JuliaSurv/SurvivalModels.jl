@@ -160,7 +160,15 @@ The Greenwood formula provides an estimate of the variance of the Kaplan-Meier s
 """
 greenwood(S::KaplanMeier, t) = sum(S.∂σ[i] for i in eachindex(S.t) if S.t[i] < t)
 
-function StatsAPI.confint(S::KaplanMeier; level::Real=0.05)
+"""
+    confint(km::KaplanMeier; level::Real=0.95)
+
+Pointwise confidence intervals for the Kaplan-Meier survival function, using the
+log-log transform and Greenwood's variance estimate. `level` is the confidence
+level (e.g. `0.95` for 95% intervals). Returns a `DataFrame` with columns `time`,
+`surv`, `lower`, and `upper`.
+"""
+function StatsAPI.confint(S::KaplanMeier; level::Real=0.95)
     n = length(S.t)
     surv = ones(Float64, n)
     for i in 1:n
@@ -173,8 +181,8 @@ function StatsAPI.confint(S::KaplanMeier; level::Real=0.05)
         acc += S.∂σ[i]
         var[i] = (surv[i]^2) * acc
     end
-    # z-value for confidence level
-    z = quantile(Normal(), 1 - level/2)
+    # z-value for the two-sided interval at the given confidence level
+    z = quantile(Normal(), (1 + level) / 2)
     lower = similar(surv)
     upper = similar(surv)
     for i in 1:n

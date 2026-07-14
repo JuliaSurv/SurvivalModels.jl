@@ -1182,6 +1182,32 @@ end
     @test S[3] ≈ 0.496732026143791 atol = 1e-12
 end
 
+@testitem "KaplanMeier confint level is the confidence level" begin
+    using DataFrames, Distributions
+    using SurvivalModels: KaplanMeier
+
+    T = Float64[2, 3, 4, 5, 8, 3, 6, 9, 11, 7]
+    Δ = Bool[1, 1, 0, 1, 0, 1, 1, 0, 1, 1]
+    km = KaplanMeier(T, Δ)
+
+    ci95 = confint(km)                 # default must be 95%
+    ci95e = confint(km, level = 0.95)
+    ci99 = confint(km, level = 0.99)
+
+    # `level` is the confidence level (StatsAPI convention), so the default is 95%.
+    @test ci95.lower == ci95e.lower
+    @test ci95.upper == ci95e.upper
+
+    # Higher confidence ⇒ wider interval. Under the old `level`-as-alpha bug,
+    # level = 0.99 produced z = quantile(Normal(), 1 - 0.99/2) ≈ 0.0125 and hence
+    # far *narrower* intervals, so this ordering is the regression guard.
+    for i in eachindex(km.t)
+        0 < ci95.surv[i] < 1 || continue
+        @test ci99.lower[i] ≤ ci95.lower[i]
+        @test ci99.upper[i] ≥ ci95.upper[i]
+    end
+end
+
 @testitem "GeneralHazardModel fit statistics (loglikelihood/aic/bic/coef/vcov)" begin
     using DataFrames, Distributions, LinearAlgebra
     using SurvivalModels: ProportionalHazard, AcceleratedFaillureTime,
