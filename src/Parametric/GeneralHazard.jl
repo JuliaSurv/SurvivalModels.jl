@@ -286,6 +286,162 @@ function StatsAPI.vcov(m::GeneralHazardModel{Method,B}) where {Method,B}
     return inv(H[idx, idx])
 end
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Coefficient names, inference tables, and display
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Human-readable model name for a fitting method.
+_gh_model_name(::PHMethod)  = "Proportional hazard"
+_gh_model_name(::AFTMethod) = "Accelerated failure time"
+_gh_model_name(::AHMethod)  = "Accelerated hazard"
+_gh_model_name(::GHMethod)  = "General hazard"
+
+# Names for the `log`-scale baseline parameters that lead `coef`. Field names are
+# used only when they match the parameter count (they do for e.g. Weibull/Gamma
+# but not for the SurvivalDistributions LogLogistic/GeneralizedGamma wrappers),
+# otherwise fall back to generic `θᵢ`.
+function _gh_baseline_names(d)
+    npd = length(Distributions.params(d))
+    fn = fieldnames(typeof(d))
+    base = length(fn) == npd ? string.(collect(fn)) : ["θ$i" for i in 1:npd]
+    return ["log($n)" for n in base]
+end
+
+# Regression-coefficient names from the stored formulas (X1 ↔ β, X2 ↔ α), falling
+# back to generic names when no formula was captured or the count doesn't match.
+_gh_rhs_names(::Nothing, k, pre) = ["$pre$i" for i in 1:k]
+function _gh_rhs_names(f::FormulaTerm, k, pre)
+    nm = try
+        string.(coefnames(f.rhs))
+    catch
+        String[]
+    end
+    return length(nm) == k ? nm : ["$pre$i" for i in 1:k]
+end
+
+# The active covariate blocks, in `coef` order, each tagged with its role: a
+# covariate acts either on the hazard multiplier (`c₂`, "hazard-level") or on the
+# time scale (`c₁`, "time-scale"). Which block is active — and its role — is
+# method-specific. `:β` is the X1 block, `:α` the X2 block.
+_gh_blocks(::PHMethod)  = (("hazard-level", :β),)
+_gh_blocks(::AFTMethod) = (("time-scale", :β),)
+_gh_blocks(::AHMethod)  = (("time-scale", :α),)
+_gh_blocks(::GHMethod)  = (("time-scale", :α), ("hazard-level", :β))
+
+# Term names and estimates for one block.
+_gh_block_terms(m::GeneralHazardModel, which::Symbol) =
+    which === :β ? (_gh_rhs_names(m.formula1, length(m.β), "β"), m.β) :
+                   (_gh_rhs_names(m.formula2, length(m.α), "α"), m.α)
+
+# Active covariate names, qualified with the role when more than one block is
+# active (only the GH model), so a covariate appearing in both blocks stays
+# distinguishable. Aligned with the regression part of `coef`.
+function _gh_regression_names(m::GeneralHazardModel{M}) where {M}
+    blocks = _gh_blocks(M())
+    qualify = length(blocks) > 1
+    names = String[]
+    for (role, which) in blocks
+        nm, _ = _gh_block_terms(m, which)
+        append!(names, qualify ? ["$n [$role]" for n in nm] : nm)
+    end
+    return names
+end
+
+"""
+    coefnames(m::GeneralHazardModel)
+
+Names aligned with [`coef`](@ref): the `log`-scale baseline parameters followed by
+the active regression coefficients.
+"""
+StatsAPI.coefnames(m::GeneralHazardModel) =
+    vcat(_gh_baseline_names(m.baseline), _gh_regression_names(m))
+
+
+# Estimates and standard errors for the active covariate coefficients, grouped by
+# role in `coef` order. `stderror` covers `[baseline; regression]`, so the leading
+# `npd` baseline entries are dropped. Baseline parameters are intentionally
+# excluded from the coefficient table: a Wald test against 0 is the question for a
+# covariate effect but not for a baseline shape/scale, which `show` reports as the
+# fitted distribution instead.
+function _gh_covariate_estimates(m::GeneralHazardModel{M}) where {M}
+    npd = length(Distributions.params(m.baseline))
+    se_reg = stderror(m)[(npd + 1):end]
+    roles, terms, est, se = String[], String[], Float64[], Float64[]
+    off = 0
+    for (role, which) in _gh_blocks(M())
+        nm, v = _gh_block_terms(m, which)
+        k = length(nm)
+        append!(roles, fill(role, k))
+        append!(terms, nm)
+        append!(est, v)
+        append!(se, se_reg[off .+ (1:k)])
+        off += k
+    end
+    return roles, terms, est, se
+end
+
+"""
+    confint(m::GeneralHazardModel; level::Real=0.95)
+
+Wald confidence intervals for the covariate coefficients at confidence level
+`level`. Returns a `DataFrame` with columns `component` (the coefficient's role,
+`"hazard-level"` or `"time-scale"`), `term`, `lower`, and `upper`. Baseline
+distribution parameters are not included (see [`coeftable`](@ref)).
+"""
+function StatsAPI.confint(m::GeneralHazardModel; level::Real = 0.95)
+    roles, terms, b, se = _gh_covariate_estimates(m)
+    z = quantile(Normal(), (1 + level) / 2)
+    return DataFrame(component = roles, term = terms, lower = b .- z .* se, upper = b .+ z .* se)
+end
+
+"""
+    coeftable(m::GeneralHazardModel; level::Real=0.95)
+
+Wald coefficient table for the covariate effects: estimate, standard error, `z`,
+p-value, `exp(coef)`, and the confidence interval for `exp(coef)` at level
+`level`. `exp(coef)` is a hazard ratio for `hazard-level` effects and a
+time/acceleration ratio for `time-scale` effects. For a General Hazard model the
+rows are tagged with their role (`hazard-level` vs `time-scale`), since a
+covariate may enter both. Baseline distribution parameters are reported by `show`,
+not here: a null of zero is not the relevant hypothesis for a baseline
+shape/scale.
+"""
+function StatsAPI.coeftable(m::GeneralHazardModel; level::Real = 0.95)
+    roles, terms, b, se = _gh_covariate_estimates(m)
+    rownms = length(unique(roles)) > 1 ? ["$t [$r]" for (t, r) in zip(terms, roles)] : terms
+    return _hr_coeftable(b, se, rownms; level = level)
+end
+
+# Terse, faithful-to-the-object display: fitted baseline and regression
+# coefficients plus fit statistics — no covariance-derived quantities. Inference
+# (standard errors, tests, intervals) is deferred to `coeftable`/`confint`, which
+# take the confidence level that has no place in a zero-argument display.
+function Base.show(io::IO, ::MIME"text/plain", m::GeneralHazardModel{M,B}) where {M,B}
+    println(io, _gh_model_name(M()), " model (", nameof(B), " baseline)")
+    println(io, "  n: ", nobs(m), ", events: ", Int(sum(m.Δ)))
+    if !isnan(m.loglik)
+        println(io, "  log-likelihood: ", _coef_fmt(loglikelihood(m)),
+            ", AIC: ", _coef_fmt(aic(m)), ", BIC: ", _coef_fmt(bic(m)))
+    end
+    bp = _coef_fmt.(collect(Float64, Distributions.params(m.baseline)))
+    println(io, "  baseline: ", nameof(B), "(", join(bp, ", "), ")")
+    blocks = _gh_blocks(M())
+    grouped = length(blocks) > 1
+    println(io, "  coefficients:")
+    for (role, which) in blocks
+        nm, v = _gh_block_terms(m, which)
+        grouped && println(io, "    ", role, ":")
+        indent = grouped ? "      " : "    "
+        w = isempty(nm) ? 0 : maximum(length, nm)
+        for (n, x) in zip(nm, v)
+            println(io, indent, rpad(n, w), "  ", _coef_fmt(x))
+        end
+    end
+end
+
+Base.show(io::IO, m::GeneralHazardModel{M,B}) where {M,B} =
+    print(io, _gh_model_name(M()), "{", nameof(B), "}(n=", nobs(m), ")")
+
 """
     _initial_baseline_log_params(baseline, T) -> Vector{Float64}
 

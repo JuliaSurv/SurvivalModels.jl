@@ -1338,3 +1338,101 @@ end
         @test g_analytic ≈ g_ad rtol=1e-8
     end
 end
+
+@testitem "Cox show / coeftable / confint reference output" begin
+    using SurvivalModels, StatsBase, DataFrames, StableRNGs, Distributions
+    using SurvivalModels: PHMethod, simulate
+
+    rng = StableRNG(11); n = 200
+    x = randn(rng, n); g = Float64.(rand(rng, n) .< 0.5)
+    Ts = simulate(n, PHMethod(), Weibull(1.5, 2.0), hcat(x, g), zeros(n, 0), Float64[], [0.6, -0.4]; rng)
+    df = DataFrame(time = min.(Ts, 4.0), status = Ts .<= 4.0, x = x, g = g)
+    m = fit(Cox, @formula(Surv(time, status) ~ x + g), df)
+
+    # `show` renders stored state only (no covariance-derived quantities).
+    @test repr(MIME"text/plain"(), m) ==
+        "Cox model (method: CoxDefault)\n  n: 200, events: 178\n  log-likelihood: -795.36, AIC: 1594.7, BIC: 1601.3\n  coefficients:\n    x  0.4765\n    g  -0.17793\n"
+
+    ct = coeftable(m)
+    @test ct.colnms == ["Coef.", "Std. Error", "z", "Pr(>|z|)", "exp(coef)", "Lower 95%", "Upper 95%"]
+    @test ct.rownms == ["x", "g"]
+    @test ct.cols[5] ≈ exp.(coef(m))                       # exp(coef) column
+    ci = confint(m)
+    @test names(ci) == ["term", "lower", "upper"]
+    @test ci.term == ["x", "g"]
+    @test ct.cols[6] ≈ exp.(ci.lower)                      # coeftable CI is exp of the coef-scale confint
+    @test ct.cols[7] ≈ exp.(ci.upper)
+    @test ci.lower ≈ coef(m) .- quantile(Normal(), 0.975) .* stderror(m)
+end
+
+@testitem "GeneralHazardModel show grouping (issue #78)" begin
+    using SurvivalModels, StatsBase, Distributions
+
+    T = [1.0, 2, 3, 4, 5]; D = Bool[1, 0, 1, 1, 0]; X = reshape([0.5, -0.5, 1.0, -1.0, 0.0], :, 1)
+
+    # Direct construction performs no optimization, so the display is fully
+    # deterministic (loglik = NaN, so that line is omitted).
+    mph = ProportionalHazard(T, D, Weibull(1.2, 2.0), X, X, [0.0], [0.7])
+    @test repr(MIME"text/plain"(), mph) ==
+        "Proportional hazard model (Weibull baseline)\n  n: 5, events: 3\n  baseline: Weibull(1.2, 2.0)\n  coefficients:\n    β1  0.7\n"
+
+    # A General Hazard model has two coefficient sets, shown under role sub-headers.
+    mgh = GeneralHazard(T, D, Weibull(1.2, 2.0), X, X, [0.3], [0.7])
+    @test repr(MIME"text/plain"(), mgh) ==
+        "General hazard model (Weibull baseline)\n  n: 5, events: 3\n  baseline: Weibull(1.2, 2.0)\n  coefficients:\n    time-scale:\n      α1  0.3\n    hazard-level:\n      β1  0.7\n"
+end
+
+@testitem "GeneralHazardModel coeftable / confint" begin
+    using SurvivalModels, StatsBase, DataFrames, StableRNGs, Distributions
+    using SurvivalModels: PHMethod, GHMethod, simulate
+
+    rng = StableRNG(7); n = 300
+    z = randn(rng, n); w = randn(rng, n)
+
+    # PH: single hazard-level block. coeftable excludes baseline params (bare names).
+    Tph = simulate(n, PHMethod(), Weibull(1.5, 2.0), hcat(z, w), zeros(n, 0), Float64[], [0.7, -0.3]; rng)
+    dph = DataFrame(time = min.(Tph, 4.0), status = Tph .<= 4.0, z = z, w = w)
+    mph = fit(ProportionalHazard{Weibull}, @formula(Surv(time, status) ~ z + w), dph)
+    ctp = coeftable(mph)
+    @test ctp.colnms == ["Coef.", "Std. Error", "z", "Pr(>|z|)", "exp(coef)", "Lower 95%", "Upper 95%"]
+    @test ctp.rownms == ["z", "w"]              # covariates only, no baseline rows, no role qualifier
+    @test ctp.cols[5] ≈ exp.(ctp.cols[1])       # exp(coef)
+    cip = confint(mph)
+    @test names(cip) == ["component", "term", "lower", "upper"]
+    @test all(==("hazard-level"), cip.component)
+    @test cip.term == ["z", "w"]
+    sp = repr(MIME"text/plain"(), mph)
+    @test occursin("log-likelihood:", sp)
+    @test !occursin("hazard-level:", sp)        # single set ⇒ no role sub-header
+
+    # GH: two blocks on distinct covariates (X1↔β↔z, X2↔α↔w) ⇒ well-identified;
+    # rows are role-qualified, time-scale (α) block before hazard-level (β).
+    Tgh = simulate(n, GHMethod(), Weibull(1.5, 2.0), reshape(z, :, 1), reshape(w, :, 1), [0.4], [0.6]; rng)
+    dgh = DataFrame(time = min.(Tgh, 4.0), status = Tgh .<= 4.0, z = z, w = w)
+    mgh = fit(GeneralHazard{Weibull}, @formula(Surv(time, status) ~ z), @formula(Surv(time, status) ~ w), dgh)
+    ctg = coeftable(mgh)
+    @test ctg.rownms == ["w [time-scale]", "z [hazard-level]"]
+    cig = confint(mgh)
+    @test cig.component == ["time-scale", "hazard-level"]
+    @test cig.term == ["w", "z"]
+    sg = repr(MIME"text/plain"(), mgh)
+    @test occursin("time-scale:", sg) && occursin("hazard-level:", sg)
+end
+
+@testitem "KaplanMeier show and RHS rejection" begin
+    using SurvivalModels, DataFrames, StatsModels
+
+    km = KaplanMeier([2.0, 3, 4, 5, 8, 3, 6], [1, 1, 0, 1, 0, 1, 1])
+    @test repr(MIME"text/plain"(), km) ==
+        "Kaplan-Meier survival estimate\n  n: 7, events: 5\n  median survival: 5.0\n"
+    @test repr(km) == "KaplanMeier(n=7)"
+
+    # Median is NA when the curve never reaches 0.5 (only one early event, rest censored).
+    km2 = KaplanMeier([1.0, 2, 3, 4], [1, 0, 0, 0])
+    @test occursin("median survival: NA", repr(MIME"text/plain"(), km2))
+
+    # Single-curve estimator: RHS variables are rejected rather than silently pooled.
+    df = DataFrame(time = [1.0, 2, 3, 4], status = Bool[1, 1, 0, 1], g = [:a, :a, :b, :b])
+    @test fit(KaplanMeier, @formula(Surv(time, status) ~ 1), df) isa KaplanMeier
+    @test_throws ArgumentError fit(KaplanMeier, @formula(Surv(time, status) ~ g), df)
+end

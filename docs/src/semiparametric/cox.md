@@ -223,21 +223,22 @@ colon = dataset("survival", "colon")
 colon.Time = Float64.(colon.Time)
 colon.Status = Bool.(colon.Status)
 model_colon = fit(Cox, @formula(Surv(Time, Status) ~ Age + Rx), colon)
-
+coeftable(model_colon)
 ```
 
-The outputed dataframe contains columns with respectively the name of the predictor, the obtained coefficients, its standard error, the associated p-value and the test statistic z as just described. 
+The table has one row per coefficient with the estimate (log hazard ratio), its standard error, the Wald `z` statistic and p-value, the hazard ratio `exp(coef)`, and the confidence interval for the hazard ratio.
 
 ```@docs
 CoxMethod
 ```
 
-### Model Summary & Extraction
+### Coefficient Table & Extraction
 
-To inspect the model statistics programmatically (such as extracting standard errors, p-values, or confidence intervals), you can use the `summary` function. This returns a DataFrame allowing for easy data manipulation.
+`coeftable(model)` returns the inference table above; `confint(model)` returns the coefficient confidence intervals as a `DataFrame` for programmatic use. Both take a `level` keyword (default `0.95`).
 
 ```@docs
-summary(::SurvivalModels.Cox)
+coeftable(::SurvivalModels.Cox)
+confint(::SurvivalModels.Cox)
 ```
 
 
@@ -645,14 +646,13 @@ The C-index measures the proportion of all usable patient pairs in which the pre
 SurvivalModels.harrells_c
 ```
 
-The C-index ranges from 0.5 (no better than random) to 1.0 (perfect discrimination). It is outputed by the show function, and can be queried seprately too: 
+The C-index ranges from 0.5 (no better than random) to 1.0 (perfect discrimination).
 
-You can compute the C-index for a fitted Cox model using:
+You can compute the C-index for a fitted Cox model with `harrells_c`:
 
 ```@example 2
 model = fit(Cox, @formula(Surv(Time, Status) ~ Age + Rx), colon)
 cindex = SurvivalModels.harrells_c(model)
-model
 ```
 
 A higher C-index indicates better predictive discrimination.

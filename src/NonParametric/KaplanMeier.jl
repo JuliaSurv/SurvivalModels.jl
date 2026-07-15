@@ -93,6 +93,13 @@ struct KaplanMeier{T}
 end
 
 function StatsBase.fit(::Type{T}, formula::FormulaTerm, df::DataFrame) where {T<:KaplanMeier}
+    # `KaplanMeier` estimates a single survival curve; right-hand-side variables
+    # would silently be ignored (it is not a stratified estimator), so reject them
+    # rather than return a misleading pooled curve. See issue on stratification.
+    isempty(StatsModels.termvars(formula.rhs)) || throw(ArgumentError(
+        "KaplanMeier estimates a single survival curve and does not support " *
+        "right-hand-side variables; use `Surv(t, s) ~ 1`. Fit separate curves per " *
+        "group, or use `LogRankTest` to compare groups."))
     # `schema(formula, df)` reads only the columns the formula references, then
     # `apply_schema` turns the `Surv(t, s)` LHS into a response term whose
     # `modelcols` returns an `n×2` matrix: column 1 the times, column 2 the event
@@ -202,3 +209,23 @@ function StatsAPI.confint(S::KaplanMeier; level::Real=0.95)
     end
     return DataFrame(time=S.t, surv=surv, lower=lower, upper=upper)
 end
+
+# Median survival: the smallest event/censor time at which Ŝ drops to or below
+# 0.5, or `NaN` if the curve never reaches 0.5.
+function _km_median(km::KaplanMeier)
+    surv = cumprod(1 .- km.∂Λ)
+    idx = findfirst(<=(0.5), surv)
+    return idx === nothing ? NaN : km.t[idx]
+end
+
+# Total sample size = number at risk just before the first event/censor time.
+_km_nobs(km::KaplanMeier) = isempty(km.Y) ? 0 : km.Y[1]
+
+function Base.show(io::IO, ::MIME"text/plain", km::KaplanMeier)
+    med = _km_median(km)
+    println(io, "Kaplan-Meier survival estimate")
+    println(io, "  n: ", _km_nobs(km), ", events: ", sum(km.∂N))
+    println(io, "  median survival: ", isnan(med) ? "NA" : _coef_fmt(med))
+end
+
+Base.show(io::IO, km::KaplanMeier) = print(io, "KaplanMeier(n=", _km_nobs(km), ")")

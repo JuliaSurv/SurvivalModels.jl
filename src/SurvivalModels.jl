@@ -13,6 +13,6 @@ include("Semiparametric/Cox.jl")
 include("Parametric/GeneralHazard.jl")
 include("Metrics/BrierScore.jl")
 
-export fit, predict, KaplanMeier, LogRankTest, Cox, @formula, Surv, Strata, confint, GeneralHazard, ProportionalHazard, AcceleratedFaillureTime, AcceleratedHazard, PHMethod, AFTMethod, AHMethod, GHMethod, simulate, simGH, predict_survival, predict_expected, loss, loglikelihood, aic, aicc, bic, dof, nobs, coef, vcov, stderror
+export fit, predict, KaplanMeier, LogRankTest, Cox, @formula, Surv, Strata, confint, GeneralHazard, ProportionalHazard, AcceleratedFaillureTime, AcceleratedHazard, PHMethod, AFTMethod, AHMethod, GHMethod, simulate, simGH, predict_survival, predict_expected, loss, loglikelihood, aic, aicc, bic, dof, nobs, coef, vcov, stderror, coeftable
 
 end
