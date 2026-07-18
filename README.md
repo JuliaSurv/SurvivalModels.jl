@@ -1,6 +1,6 @@
 # SurvivalModels.jl
 
-*A pure-julia take on standard survival analysis modeling.*
+*Survival analysis models and utilities, written in Julia.*
 
 [![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://JuliaSurv.github.io/SurvivalModels.jl/stable/)
 [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://JuliaSurv.github.io/SurvivalModels.jl/dev/)
@@ -11,39 +11,57 @@
 [![PkgEval](https://JuliaCI.github.io/NanosoldierReports/pkgeval_badges/S/SurvivalModels.svg)](https://JuliaCI.github.io/NanosoldierReports/pkgeval_badges/S/SurvivalModels.html)
 [![Aqua](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
 
-The `SurivalModels.jl` package is part of the `JuliaSurv` survival analysis suite. It provides the necessary tools to perform modeling of survival data, from non-parametric estimators and tests to semi-parametric and fully-parametric models.
+`SurvivalModels.jl` is part of the [JuliaSurv](https://github.com/JuliaSurv) ecosystem. It provides a consistent interface for nonparametric estimation and testing, semiparametric Cox regression, and fully parametric survival models.
 
-# Getting started
+## Getting started
 
-The package available on Julai's General registry, therefore you can use the following to install it : 
+The package is available from Julia's General registry:
 
 ```julia
-] add SurvivalModels
+using Pkg
+Pkg.add("SurvivalModels")
 ```
 
-# Features / Roadmap
+Then load it with:
 
-The package targets for the moment the following features: 
+```julia
+using SurvivalModels
+```
 
-- Nonparametric 
-    - [x] Kaplan-Meier
-    - [x] Log-rank test (including stratification)
-- Semi-parametric
-    - [x] Cox (See PR #15)
-    - [ ] Aalen
-- Parametric
-    - [x] General Hazard models
-    - [ ] Frailties ?
-    - [ ] Mixed models ?
-    - [ ] More generic predictors such as splines ? 
-- [ ] Junction with [`NetSurvival.jl`](https://github.com/JuliaSurv/NetSurvival.jl) to provide the same models on net survival instead of survival ? (i.e. with a population mortality offset.)
-- [ ] 
-- [ ] Something else on this list ? Open a PR :)
+## Available features
 
-In term of interface, we leverage the standard modeling interface from `StatsBase.jl`/`StatsAPI.jl`/`StatsModels.jl`. 
+### Nonparametric methods
 
-Some of the models might not provide all the outputs you need for the moment. Feel free to open an issue to tell us, we'll look at it and add the features if we can :)
+- Kaplan–Meier estimation, including Greenwood confidence intervals.
+- Survival and cumulative-hazard prediction at observed or user-supplied times.
+- Two- and multi-group log-rank tests.
+- Stratified log-rank tests with tied-event variance correction.
 
-# Contributions are welcome
+### Semiparametric models
 
-If you want to contribute to the package, ask a question, found a bug or simply want to chat, do not hesitate to open an issue on this repo. General guidelines on collaborative practices (colprac) are available at https://github.com/SciML/ColPrac.
+- Cox proportional hazards regression through the formula interface.
+- Breslow baseline cumulative-hazard estimation.
+- Coefficients, standard errors, covariance matrices, confidence intervals, coefficient tables, log partial likelihood, AIC, AICc, and BIC.
+- Prediction of linear predictors, relative risks, term contributions, cumulative hazards, and survival probabilities.
+- Prediction on new data using the schema stored during fitting.
+
+### Parametric models
+
+- General Hazard (GH), Proportional Hazards (PH), Accelerated Failure Time (AFT), and Accelerated Hazards (AH) model structures.
+- Flexible continuous baseline distributions through the `Distributions.jl` interface.
+- Formula-based fitting, statistical inference, information criteria, and coefficient tables.
+- Cumulative-hazard and survival prediction for training or new data.
+- Simulation from GH, PH, AFT, and AH models.
+
+### Model evaluation and interfaces
+
+- Harrell's concordance index for Cox models.
+- IPCW Brier scores and integrated Brier scores for Cox and parametric models.
+- Standard `fit`, `predict`, `coef`, `vcov`, `confint`, and related interfaces from `StatsBase.jl`, `StatsAPI.jl`, and `StatsModels.jl`.
+- `DataFrames.jl` and `@formula(Surv(time, status) ~ predictors)` workflows.
+
+See the [stable documentation](https://JuliaSurv.github.io/SurvivalModels.jl/stable/) for examples and the complete API.
+
+## Contributions are welcome
+
+Questions, bug reports, feature requests, and pull requests are welcome through the repository's [issue tracker](https://github.com/JuliaSurv/SurvivalModels.jl/issues). General collaborative guidelines are available from [ColPrac](https://github.com/SciML/ColPrac).
