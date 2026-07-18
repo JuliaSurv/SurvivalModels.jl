@@ -61,18 +61,21 @@ struct LogRankTest{T}
             end
         end
 
-        # Now, for each stratum and time, compute totals and fill R, ∂Z, ∂V
         for s in 1:nstrata, j in 1:ngrid
             Dtot = sum(D[s, :, j])
             ∂Ntot = sum(∂N[s, :, j])
             for g in 1:ngroups
-                R[s, g, j] = D[s, g, j] > 0 ? D[s, g, j] / Dtot : zero(T)
+                R[s, g, j] = Dtot > 0 ? D[s, g, j] / Dtot : zero(T)
                 ∂Z[s, g, j] = ∂N[s, g, j] - R[s, g, j] * ∂Ntot
-                ∂V[s, g, j] = (Dtot > 1) ? (∂Ntot * D[s, g, j] * (Dtot - D[s, g, j]) / (Dtot^2 * (Dtot - 1))) : zero(T)
             end
-            # Fill ∂VZ for this stratum and time
-            for ℓ in 1:ngroups, g in 1:ngroups, h in 1:ngroups
-                ∂VZ[s, g, h, j] += ((g==ℓ) - R[s, g, j]) * ((h==ℓ) - R[s, h, j]) * ∂V[s, ℓ, j]
+
+            covariance_factor = Dtot > 1 ? ∂Ntot * (Dtot - ∂Ntot) / (Dtot - 1) : zero(T)
+            for g in 1:ngroups
+                ∂V[s, g, j] = covariance_factor * R[s, g, j] * (one(T) - R[s, g, j])
+                for h in 1:ngroups
+                    group_indicator = g == h ? one(T) : zero(T)
+                    ∂VZ[s, g, h, j] = covariance_factor * R[s, g, j] * (group_indicator - R[s, h, j])
+                end
             end
         end
 
