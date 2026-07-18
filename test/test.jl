@@ -717,8 +717,43 @@ end
     group4 = [1, 1, 1, 2, 2, 2]
     strata = ones(Int, 6)
     lrt4 = LogRankTest(T4, Δ4, group4, strata)
-    @test lrt4.stat ≥ 0
-    @test lrt4.pval ≈ 0 atol=1e-8
+    @test lrt4.stat ≈ 5.051660516605166 atol=1e-12
+    @test lrt4.pval ≈ 0.024602349953641786 atol=1e-12
+
+    # Regression for issue #85: two fully separated groups of five.
+    # The expected value is the conditional hypergeometric log-rank statistic,
+    # not the spuriously inflated value (about 119) from the old covariance.
+    T5 = Float64[6, 7, 8, 9, 10, 1, 2, 3, 4, 5]
+    Δ5 = trues(10)
+    group5 = [fill(1, 5); fill(2, 5)]
+    strata5 = ones(Int, 10)
+    lrt5 = LogRankTest(T5, Δ5, group5, strata5)
+    @test lrt5.stat ≈ 9.700742820077764 atol=1e-12
+    @test lrt5.pval ≈ 0.0018419354016198 atol=1e-12
+
+    # Tied events exercise the finite-population correction (Y - d)/(Y - 1).
+    T_tied = Float64[3, 3, 4, 4, 1, 1, 2, 2]
+    Δ_tied = trues(8)
+    group_tied = [fill(1, 4); fill(2, 4)]
+    strata_tied = ones(Int, 8)
+    lrt_tied = LogRankTest(T_tied, Δ_tied, group_tied, strata_tied)
+    @test sum(lrt_tied.∂VZ[1, 1, 1, :]) ≈ 247 / 315 atol=1e-12
+    @test lrt_tied.stat ≈ 1715 / 247 atol=1e-12
+    @test lrt_tied.pval ≈ 0.008413282250381937 atol=1e-12
+
+    # Three groups pin the off-diagonal entries of the covariance matrix.
+    T_multi = Float64[1, 2, 3, 4, 5, 6]
+    Δ_multi = trues(6)
+    group_multi = [1, 1, 2, 2, 3, 3]
+    strata_multi = ones(Int, 6)
+    lrt_multi = LogRankTest(T_multi, Δ_multi, group_multi, strata_multi)
+    V_multi = dropdims(sum(lrt_multi.∂VZ, dims=(1, 4)), dims=(1, 4))
+    @test V_multi[1, 1] ≈ 86 / 225 atol=1e-12
+    @test V_multi[1, 2] ≈ -43 / 225 atol=1e-12
+    @test V_multi[2, 3] ≈ -223 / 300 atol=1e-12
+    @test lrt_multi.df == 2
+    @test lrt_multi.stat ≈ 47077 / 6493 atol=1e-12
+    @test lrt_multi.pval ≈ 0.026643454547308338 atol=1e-12
 
     # Two strata, two groups, identical within strata
     T = Float64[1, 2, 3, 4, 1, 2, 3, 4]
@@ -735,6 +770,17 @@ end
     lrt2 = LogRankTest(T2, Δ, group, strata)
     @test lrt2.stat > 0
     @test 0 < lrt2.pval < 1
+
+    # Scores and covariance must be accumulated within strata.  Each stratum
+    # has the same 2-vs-2 ordering, but their time ranges do not overlap.
+    T3 = Float64[1, 2, 3, 4, 101, 102, 103, 104]
+    Δ3 = trues(8)
+    group3 = [1, 1, 2, 2, 1, 1, 2, 2]
+    strata3 = [fill(1, 4); fill(2, 4)]
+    lrt3 = LogRankTest(T3, Δ3, group3, strata3)
+    @test sum(lrt3.∂VZ[:, 1, 1, :]) ≈ 17 / 18 atol=1e-12
+    @test lrt3.stat ≈ 98 / 17 atol=1e-12
+    @test lrt3.pval ≈ 0.01635122157580587 atol=1e-12
 end
 
 @testitem "fit() interface matches direct constructor for KaplanMeier and LogRankTest" begin
