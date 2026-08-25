@@ -126,11 +126,53 @@ model = GeneralHazardModel(
 ```
 or fit it from data using the `fit` interface.
 
-Supported methods: 
+Supported methods:
 - `ProportionalHazard`: For PH models.
 - `AcceleratedFaillureTime`: For AFT models.
 - `AcceleratedHazard`: For AH models.
 - `GeneralHazard`: For full GH models.
+
+# Example: fitting and display
+
+A GH fit takes two formulas — the first supplies `X1` (the `hazard-level` block,
+`β`), the second `X2` (the `time-scale` block, `α`):
+
+```julia
+julia> using SurvivalModels, RDatasets, Distributions
+
+julia> ovarian = dataset("survival", "ovarian");
+
+julia> m = fit(GeneralHazard{Weibull},
+               @formula(Surv(FUTime, FUStat) ~ Age),
+               @formula(Surv(FUTime, FUStat) ~ ECOG_PS),
+               ovarian)
+General hazard model (Weibull baseline)
+  n: 26, events: 12
+  log-likelihood: -89.965, AIC: 187.93, BIC: 192.96
+  baseline: Weibull(1.6576, 216420.0)
+  coefficients:
+    time-scale:
+      ECOG_PS  -0.25149
+    hazard-level:
+      Age  0.16083
+```
+
+The display reports the fitted object only — baseline parameters, coefficients,
+and fit statistics. Inference lives in [`coeftable`](@ref) and
+[`confint`](@ref confint(::GeneralHazardModel)), which take a confidence level.
+(The large baseline scale above
+is not a display artefact: with 26 observations and 12 events the GH structure is
+only weakly identified on this dataset, and the scale trades off against the
+`hazard-level` effect of `Age`.)
+
+Outside of a REPL display — inside a container, say — the model prints in a
+one-line form:
+
+```julia
+julia> [m]
+1-element Vector{GeneralHazard{Weibull{Float64}}}:
+ General hazard{Weibull}(n=26)
+```
 """
 struct GeneralHazardModel{Method, B} <: StatsAPI.StatisticalModel
     T::Vector{Float64}
@@ -387,6 +429,31 @@ Wald confidence intervals for the covariate coefficients at confidence level
 `level`. Returns a `DataFrame` with columns `component` (the coefficient's role,
 `"hazard-level"` or `"time-scale"`), `term`, `lower`, and `upper`. Baseline
 distribution parameters are not included (see [`coeftable`](@ref)).
+
+The bounds are on the **coefficient** scale, unlike the `Lower`/`Upper` columns of
+[`coeftable`](@ref), which bracket `exp(coef)`.
+
+# Example
+
+For the model fitted in [`GeneralHazardModel`](@ref):
+
+```julia
+julia> confint(m)
+2×4 DataFrame
+ Row │ component     term     lower      upper
+     │ String        String   Float64    Float64
+─────┼────────────────────────────────────────────
+   1 │ time-scale    ECOG_PS  -2.03921   1.53622
+   2 │ hazard-level  Age       0.071952  0.249715
+
+julia> confint(m; level = 0.90)
+2×4 DataFrame
+ Row │ component     term     lower       upper
+     │ String        String   Float64     Float64
+─────┼─────────────────────────────────────────────
+   1 │ time-scale    ECOG_PS  -1.75179    1.24881
+   2 │ hazard-level  Age       0.0862418  0.235425
+```
 """
 function StatsAPI.confint(m::GeneralHazardModel; level::Real = 0.95)
     roles, terms, b, se = _gh_covariate_estimates(m)
@@ -405,6 +472,23 @@ rows are tagged with their role (`hazard-level` vs `time-scale`), since a
 covariate may enter both. Baseline distribution parameters are reported by `show`,
 not here: a null of zero is not the relevant hypothesis for a baseline
 shape/scale.
+
+Note that `Lower`/`Upper` bracket `exp(coef)`, not the coefficient itself; for
+intervals on the coefficient scale use [`confint`](@ref confint(::GeneralHazardModel)).
+
+# Example
+
+For the model fitted in [`GeneralHazardModel`](@ref):
+
+```julia
+julia> coeftable(m)
+─────────────────────────────────────────────────────────────────────────────────────────────
+                          Coef.  Std. Error      z  Pr(>|z|)  exp(coef)  Lower 95%  Upper 95%
+─────────────────────────────────────────────────────────────────────────────────────────────
+ECOG_PS [time-scale]  -0.251492   0.912117   -0.28    0.7828   0.777639   0.130132    4.64701
+Age [hazard-level]     0.160833   0.0453485   3.55    0.0004   1.17449    1.0746      1.28366
+─────────────────────────────────────────────────────────────────────────────────────────────
+```
 """
 function StatsAPI.coeftable(m::GeneralHazardModel; level::Real = 0.95)
     roles, terms, b, se = _gh_covariate_estimates(m)

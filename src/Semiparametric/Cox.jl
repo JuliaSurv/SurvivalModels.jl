@@ -18,13 +18,33 @@ Returns:
 Example:
 
 ```julia
-ovarian = dataset("survival", "ovarian")
-ovarian.FUTime = Float64.(ovarian.FUTime) (Time column needs to be Float64 type)
-ovarian.FUStat = Bool.(ovarian.FUStat) (Status column needs to be Bool type)
-model = fit(Cox, @formula(Surv(FUTime, FUStat) ~ Age + ECOG_PS), ovarian)
+julia> using SurvivalModels, RDatasets
+
+julia> ovarian = dataset("survival", "ovarian");
+
+julia> model = fit(Cox, @formula(Surv(FUTime, FUStat) ~ Age + ECOG_PS), ovarian)
+Cox model (method: CoxDefault)
+  n: 26, events: 12
+  log-likelihood: -27.838, AIC: 59.675, BIC: 62.192
+  coefficients:
+    Age      0.1615
+    ECOG_PS  0.018662
 ```
 
-We need to add details about the different prediction types here. 
+The display reports the fitted object only — coefficients (log hazard ratios)
+and fit statistics. Inference lives in [`coeftable`](@ref coeftable(::Cox)) and
+[`confint`](@ref confint(::Cox)), which take a confidence level.
+
+Outside of a REPL display — inside a container, say — the model prints in a
+one-line form:
+
+```julia
+julia> [model]
+1-element Vector{Cox{SurvivalModels.CoxDefault}}:
+ Cox model (method: CoxDefault)
+```
+
+We need to add details about the different prediction types here.
 
 Types: 
 - Cox : the base abstract type
@@ -419,6 +439,23 @@ Wald coefficient table for a fitted Cox model: the coefficient (log hazard
 ratio), its standard error, the `z` statistic, the two-sided p-value, the hazard
 ratio `exp(coef)`, and the confidence interval for the hazard ratio at confidence
 level `level` (matching R's `summary(coxph)` convention).
+
+Note that `Lower`/`Upper` bracket `exp(coef)`, not the coefficient itself; for
+intervals on the coefficient scale use [`confint`](@ref confint(::Cox)).
+
+# Example
+
+For the model fitted in [`fit`](@ref SurvivalModels.CoxMethod):
+
+```julia
+julia> coeftable(model)
+───────────────────────────────────────────────────────────────────────────────
+             Coef.  Std. Error     z  Pr(>|z|)  exp(coef)  Lower 95%  Upper 95%
+───────────────────────────────────────────────────────────────────────────────
+Age      0.161501    0.0499226  3.24    0.0012    1.17527   1.06572     1.29608
+ECOG_PS  0.0186619   0.599085   0.03    0.9751    1.01884   0.314893    3.29645
+───────────────────────────────────────────────────────────────────────────────
+```
 """
 StatsAPI.coeftable(C::Cox; level::Real = 0.95) =
     _hr_coeftable(coef(C), stderror(C), coefnames(C); level = level)
@@ -429,6 +466,31 @@ StatsAPI.coeftable(C::Cox; level::Real = 0.95) =
 Wald confidence intervals for the coefficients (log-hazard-ratio scale) at
 confidence level `level`. Returns a `DataFrame` with columns `term`, `lower`,
 `upper`.
+
+The bounds are on the coefficient scale, unlike the `Lower`/`Upper` columns of
+[`coeftable`](@ref coeftable(::Cox)), which bracket the hazard ratio `exp(coef)`.
+
+# Example
+
+For the model fitted in [`fit`](@ref SurvivalModels.CoxMethod):
+
+```julia
+julia> confint(model)
+2×3 DataFrame
+ Row │ term     lower       upper
+     │ String   Float64     Float64
+─────┼───────────────────────────────
+   1 │ Age       0.0636547  0.259348
+   2 │ ECOG_PS  -1.15552    1.19285
+
+julia> confint(model; level = 0.90)
+2×3 DataFrame
+ Row │ term     lower       upper
+     │ String   Float64     Float64
+─────┼───────────────────────────────
+   1 │ Age       0.0793859  0.243617
+   2 │ ECOG_PS  -0.966745   1.00407
+```
 """
 function StatsAPI.confint(C::Cox; level::Real = 0.95)
     b = coef(C)

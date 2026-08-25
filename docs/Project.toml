@@ -13,3 +13,10 @@ StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 Survival = "8a913413-2070-5976-9d4c-2b364fdc2f7f"
 SurvivalDistributions = "7121986e-ae89-4673-ae4e-1cb822919a18"
 SurvivalModels = "230d35e3-bb2c-48f4-adfc-0b42c4b39395"
+
+[compat]
+# The Cox page renders a `CoefTable` through Documenter, which uses the
+# `text/markdown` representation. Escaping of the `Pr(>|z|)` header's pipes
+# landed in 0.34.13 (JuliaStats/StatsBase.jl#1007); before that the table
+# renders as a mangled paragraph.
+StatsBase = "0.34.13"
