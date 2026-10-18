@@ -1,6 +1,6 @@
 name = "SurvivalModels"
 uuid = "230d35e3-bb2c-48f4-adfc-0b42c4b39395"
-version = "0.1.6"
+version = "0.1.7"
 authors = ["Oskar Laverny <oskar.laverny@univ-amu.fr> and contributors"]
 
 [deps]
@@ -35,7 +35,7 @@ SurvivalBase = "0.1"
 SurvivalDistributions = "0.1.0"
 Test = "1"
 TestItemRunner = "0.2"
-julia = "1.11"
+julia = "1.10"
 
 [extras]
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
